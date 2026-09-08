@@ -1,0 +1,6 @@
+.next/
+node_modules/
+.pnpm-store/
+.env
+.env*.local
+!.env.example
