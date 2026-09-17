@@ -1,54 +1,98 @@
+"use client";
 import Link from "next/link";
-import { AppShell } from "@/components/AppShell";
-import { StatusPill } from "@/components/StatusPill";
-import { events } from "@/data/horizon";
-import { balanceOutstanding, eventProfit, money } from "@/lib/workflow";
-
-export default function FinancePage() {
-  const revenue = events.reduce((sum, event) => sum + event.finance.quotedAmount, 0);
-  const outstanding = events.reduce((sum, event) => sum + balanceOutstanding(event), 0);
-  const profit = events.reduce((sum, event) => sum + eventProfit(event), 0);
-
+import { useWorkspace } from "@/components/Workspace";
+import {
+  balance,
+  formatDate,
+  money,
+  profit,
+  received,
+  totalFee,
+} from "@/lib/workflow";
+export default function Page() {
+  const { data } = useWorkspace();
+  const events = data.events
+    .filter((e) => !e.archived)
+    .sort((a, b) =>
+      (a.eventDate || "9999").localeCompare(b.eventDate || "9999"),
+    );
   return (
-    <AppShell>
+    <>
       <header className="page-head">
         <div>
-          <h1>Finance</h1>
-          <p>Basic event-level finance only: quoted amount, deposit checkpoints, final payment, costs, and estimated profit.</p>
+          <span className="eyebrow">EVENT FINANCES · AUD</span>
+          <h1>Payments & costs</h1>
+          <p>
+            Open an event to record charges, deposits, payments and player fees.
+          </p>
         </div>
-        <StatusPill tone="info">No bank integration</StatusPill>
       </header>
-
-      <section className="grid grid-3">
-        <div className="metric"><span>Quoted revenue</span><strong>{money(revenue)}</strong></div>
-        <div className="metric"><span>Outstanding</span><strong>{money(outstanding)}</strong></div>
-        <div className="metric"><span>Estimated profit</span><strong>{money(profit)}</strong></div>
-      </section>
-
-      <section className="section" style={{ marginTop: 18 }}>
-        <div className="section-head"><h2>Event Finance</h2></div>
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr><th>Event</th><th>Quoted</th><th>Deposit invoice</th><th>Deposit received</th><th>Balance</th><th>Final invoice</th><th>Final paid</th><th>Profit</th></tr>
-            </thead>
-            <tbody>
-              {events.map((event) => (
-                <tr key={event.id}>
-                  <td><Link className="table-link" href={`/clients/${event.id}`}>{event.clientName}</Link><small>{event.id}</small></td>
-                  <td>{money(event.finance.quotedAmount)}</td>
-                  <td>{event.finance.depositInvoiceSent ? "Sent" : "Not sent"}</td>
-                  <td>{money(event.finance.depositReceived)}</td>
-                  <td>{money(balanceOutstanding(event))}</td>
-                  <td>{event.finance.finalInvoiceSent ? "Sent" : "Not sent"}</td>
-                  <td>{event.finance.finalPaid ? "Yes" : "No"}</td>
-                  <td>{money(eventProfit(event))}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
-    </AppShell>
+      <div className="finance-line">
+        <span>
+          Fees{" "}
+          <strong>{money(events.reduce((s, e) => s + totalFee(e), 0))}</strong>
+        </span>
+        <span>
+          Received{" "}
+          <strong>{money(events.reduce((s, e) => s + received(e), 0))}</strong>
+        </span>
+        <span>
+          Outstanding{" "}
+          <strong>{money(events.reduce((s, e) => s + balance(e), 0))}</strong>
+        </span>
+      </div>
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Event</th>
+              <th>Fee</th>
+              <th>Deposit received</th>
+              <th>Balance</th>
+              <th>Player costs</th>
+              <th>Est. profit</th>
+              <th>Invoice</th>
+            </tr>
+          </thead>
+          <tbody>
+            {events.map((e) => (
+              <tr key={e.id}>
+                <td>
+                  <Link href={`/clients/${e.id}#finance`}>{e.name}</Link>
+                  <small>{formatDate(e.eventDate)}</small>
+                </td>
+                <td>{money(totalFee(e))}</td>
+                <td>
+                  {e.finance.depositReceived
+                    ? money(e.finance.depositAmount)
+                    : "Not received"}
+                </td>
+                <td className={balance(e) > 0 ? "attention" : ""}>
+                  {money(balance(e))}
+                  {received(e) > totalFee(e) && (
+                    <small>Credit: {money(received(e) - totalFee(e))}</small>
+                  )}
+                </td>
+                <td>{money(e.musicians.reduce((s, m) => s + m.fee, 0))}</td>
+                <td>{money(profit(e))}</td>
+                <td>
+                  {e.finance.invoiceReference || "—"}
+                  <small>
+                    {e.finance.invoiceSent
+                      ? "Final invoice sent"
+                      : "Final invoice not sent"}
+                  </small>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {!events.length && <p className="empty">No active events yet.</p>}
+      </div>
+      <p className="muted">
+        Estimated profit is fees less recorded player and other costs. This is
+        operational tracking; tax and accounting are handled separately.
+      </p>
+    </>
   );
 }
