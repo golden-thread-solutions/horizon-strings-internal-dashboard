@@ -19,6 +19,11 @@ export function addDays(day: string, days: number) {
   d.setUTCDate(d.getUTCDate() + days);
   return d.toISOString().slice(0, 10);
 }
+export function nextThursday(day: string) {
+  const d = new Date(`${day}T12:00:00Z`);
+  const daysUntilThursday = (4 - d.getUTCDay() + 7) % 7 || 7;
+  return addDays(day, daysUntilThursday);
+}
 export const weeksBefore = (e: EventRecord, weeks: number) =>
   e.eventDate ? addDays(e.eventDate, -7 * weeks) : e.createdDate;
 export const money = (v: number) =>
@@ -298,7 +303,10 @@ export function eventActions(
           add(
             "review",
             "Request a review",
-            addDays(e.eventDate, s.postEventDays),
+            nextThursday(
+              e.milestones.thankYouSent ||
+                addDays(e.eventDate, s.postEventDays),
+            ),
             "communications",
             "Communication",
           );

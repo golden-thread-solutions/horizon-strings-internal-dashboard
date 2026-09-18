@@ -40,6 +40,8 @@ Do not set `DASHBOARD_DEMO_MODE`, old Basic Auth variables or a service-role key
 
 The project's Backups screen confirms that its Free plan does not include project backups. The owner still needs to choose a paid scheduled-backup plan or an agreed manual backup/restore process before entering real customer data. No paid upgrade was made. Settings offers a private JSON export as an additional manual backup; there is no self-service import.
 
+The independent backup implementation is documented in [EXTERNAL_BACKUPS.md](EXTERNAL_BACKUPS.md). It is designed for a six-hour maximum data-loss window and remains inactive until its R2 bucket and GitHub secrets are configured.
+
 Application rollback: redeploy the prior tested dashboard commit in Vercel. Never use the old v0.5 sample app as a real-data fallback. Never drop tables/reapply the initial migration to fix deployment; database recovery needs a reviewed backup plan.
 
 ## Local development

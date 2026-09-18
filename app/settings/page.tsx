@@ -112,7 +112,7 @@ export default function Page() {
               }
             />
             <Field
-              label="Post-event actions (days after event)"
+              label="Thank-you message (days after event)"
               type="number"
               min={0}
               max={90}

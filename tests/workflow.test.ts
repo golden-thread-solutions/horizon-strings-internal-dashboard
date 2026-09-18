@@ -18,6 +18,7 @@ import {
   profit,
   readiness,
   weeksBefore,
+  nextThursday,
 } from "../lib/workflow";
 const today = "2026-09-18";
 function booked(days = 60) {
@@ -125,7 +126,7 @@ test("deferred action due date follows settings and concrete dates override trig
     eventActions(e, s, today).find((a) =>
       a.id.endsWith(":deferred:wetWeather"),
     )!;
-  assert.equal(find(defaultSettings).dueDate, addDays(e.eventDate, -14));
+  assert.equal(find(defaultSettings).dueDate, addDays(e.eventDate, -28));
   assert.equal(
     find({ ...defaultSettings, finalWeeks: 3 }).dueDate,
     addDays(e.eventDate, -21),
@@ -158,6 +159,20 @@ test("timing changes move generated actions but preserve manual due dates", () =
   );
   assert.equal(result.find((a) => a.origin === "Manual")?.dueDate, today);
 });
+test("post-event review follows the next Thursday after the thank-you message", () => {
+  const e = booked(0);
+  e.milestones.thankYouSent = "2026-09-21";
+  const actions = eventActions(e, defaultSettings, "2026-09-22");
+  assert.equal(nextThursday("2026-09-21"), "2026-09-24");
+  assert.equal(
+    actions.find((a) => a.id.endsWith(":thanks"))?.dueDate,
+    undefined,
+  );
+  assert.equal(
+    actions.find((a) => a.id.endsWith(":review"))?.dueDate,
+    "2026-09-24",
+  );
+});
 test("Event Ready requires full ensemble, music access, final confirmation and selected payment gate", () => {
   const e = booked(7);
   assert.equal(deriveStage(e, defaultSettings, today), "Final Details");
@@ -180,10 +195,10 @@ test("Event Ready requires full ensemble, music access, final confirmation and s
   assert.notEqual(deriveStage(e, defaultSettings, today), "Event Ready");
   e.ensemble = "Solo";
   e.finance.performance = 200;
-  assert.notEqual(deriveStage(e, defaultSettings, today), "Event Ready");
+  assert.equal(deriveStage(e, defaultSettings, today), "Event Ready");
   assert.equal(
-    deriveStage(e, { ...defaultSettings, readyRequiresPayment: false }, today),
-    "Event Ready",
+    deriveStage(e, { ...defaultSettings, readyRequiresPayment: true }, today),
+    "Final Details",
   );
 });
 test("date drives Event Day and Post-event; archival cannot hide unresolved work", () => {

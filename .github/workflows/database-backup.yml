@@ -1,0 +1,114 @@
+name: External database backup
+
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-database-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+      R2_BUCKET: ${{ secrets.R2_BUCKET }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: auto
+      BACKUP_ENCRYPTION_KEY: ${{ secrets.BACKUP_ENCRYPTION_KEY }}
+      BACKUP_RETENTION_DAYS: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install backup tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends age postgresql-client
+
+      - name: Validate configuration without printing secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in SUPABASE_DB_URL R2_ENDPOINT R2_BUCKET AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY BACKUP_ENCRYPTION_KEY; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "Missing required GitHub secret: $name" >&2
+              exit 1
+            fi
+          done
+
+      - name: Dump, encrypt and verify production database
+        id: archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          timestamp="$(date -u +%Y-%m-%dT%H%M%SZ)"
+          run_dir="$(mktemp -d)"
+          trap 'rm -rf "$run_dir"' EXIT
+          archive="horizon-${timestamp}.tar.gz"
+          encrypted="${archive}.age"
+          metadata="$run_dir/metadata.json"
+
+          pg_dump --dbname="$SUPABASE_DB_URL" --format=custom --blobs --no-owner --no-privileges --file="$run_dir/production.dump"
+          pg_dumpall --dbname="$SUPABASE_DB_URL" --roles-only --no-role-passwords > "$run_dir/roles.sql"
+          cat > "$metadata" <<EOF
+          {
+            "timestamp": "$timestamp",
+            "environment": "production",
+            "supabase_project": "rqsdieaugozncjsmhcgd",
+            "format": "pg_dump custom + pg_dumpall roles, gzip, age passphrase encryption",
+            "workflow_version": "external-database-backup-v1",
+            "git_commit": "${GITHUB_SHA}"
+          }
+          EOF
+          tar -C "$run_dir" -czf "$run_dir/$archive" production.dump roles.sql metadata.json
+          printf '%s' "$BACKUP_ENCRYPTION_KEY" > "$run_dir/passphrase"
+          age --passphrase-file "$run_dir/passphrase" --output "$run_dir/$encrypted" "$run_dir/$archive"
+          sha256sum "$run_dir/$encrypted" > "$run_dir/$encrypted.sha256"
+          test -s "$run_dir/$encrypted"
+          test -s "$run_dir/$encrypted.sha256"
+          echo "timestamp=$timestamp" >> "$GITHUB_OUTPUT"
+          echo "run_dir=$run_dir" >> "$GITHUB_OUTPUT"
+          echo "encrypted=$encrypted" >> "$GITHUB_OUTPUT"
+
+      - name: Upload and verify in private Cloudflare R2
+        shell: bash
+        env:
+          RUN_DIR: ${{ steps.archive.outputs.run_dir }}
+          ENCRYPTED: ${{ steps.archive.outputs.encrypted }}
+          TIMESTAMP: ${{ steps.archive.outputs.timestamp }}
+        run: |
+          set -euo pipefail
+          year="${TIMESTAMP:0:4}"
+          month="${TIMESTAMP:5:2}"
+          prefix="production/database/${year}/${month}"
+          object="${prefix}/${ENCRYPTED}"
+          checksum="${object}.sha256"
+          aws s3 cp "$RUN_DIR/$ENCRYPTED" "s3://$R2_BUCKET/$object" --endpoint-url "$R2_ENDPOINT" --only-show-errors
+          aws s3 cp "$RUN_DIR/$ENCRYPTED.sha256" "s3://$R2_BUCKET/$checksum" --endpoint-url "$R2_ENDPOINT" --only-show-errors
+          expected_size="$(stat -c '%s' "$RUN_DIR/$ENCRYPTED")"
+          actual_size="$(aws s3api head-object --bucket "$R2_BUCKET" --key "$object" --endpoint-url "$R2_ENDPOINT" --query ContentLength --output text)"
+          [[ "$actual_size" == "$expected_size" ]]
+          aws s3 cp "s3://$R2_BUCKET/$checksum" "$RUN_DIR/remote.sha256" --endpoint-url "$R2_ENDPOINT" --only-show-errors
+          cmp "$RUN_DIR/$ENCRYPTED.sha256" "$RUN_DIR/remote.sha256"
+
+      - name: Remove verified backups older than retention period
+        shell: bash
+        env:
+          TIMESTAMP: ${{ steps.archive.outputs.timestamp }}
+        run: |
+          set -euo pipefail
+          cutoff="$(date -u -d "${BACKUP_RETENTION_DAYS} days ago" +%Y-%m-%dT%H:%M:%SZ)"
+          keys="$(aws s3api list-objects-v2 --bucket "$R2_BUCKET" --prefix production/database/ --endpoint-url "$R2_ENDPOINT" --query "Contents[?LastModified<='${cutoff}'].Key" --output text)"
+          [[ "$keys" == "None" ]] && exit 0
+          for key in $keys; do
+            aws s3api delete-object --bucket "$R2_BUCKET" --key "$key" --endpoint-url "$R2_ENDPOINT" --only-show-errors
+          done
