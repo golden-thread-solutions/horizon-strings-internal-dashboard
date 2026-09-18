@@ -1,25 +1,34 @@
-# Horizon Strings Operations Dashboard
+# Horizon Strings Operations
 
-Local v0.5 internal dashboard for Horizon Strings.
+Private, two-owner event workspace. The public website is a separate project.
 
-## Current State
+Implemented: name-only enquiries, derived stages, pending tasks/outbound communications, a continuous event editor, explicit unknown/filled/not-applicable/deferred detail states, week-based workflow settings, contacts, musicians, repertoire/arrangements, payment tracking, contact history and archive rules.
 
-- Next.js app
-- Local dummy/data-file records in `data/horizon.ts`
-- Workflow rules in `lib/workflow.ts`
-- Supabase database schema prepared in `supabase/migrations`
-- Optional password protection prepared through `DASHBOARD_PASSWORD`
-- Not yet connected to live Supabase data
+Prepared for live use: Supabase owner authentication/RLS, atomic event saves, concurrent-edit protection, migrations, environment template, Vercel settings and automated checks. **Live account configuration and end-to-end production verification remain pending.** No real customer data is included.
 
-## Safe Online Path
+## Run locally
 
-1. Put this folder in a private GitHub repository.
-2. Create a Supabase project.
-3. Run the migration in `supabase/migrations/0001_initial_horizon_schema.sql`.
-4. Optionally run `supabase/seed.sql` to create dummy online records.
-5. Create a Vercel project from the GitHub repository.
-6. Add Vercel environment variables from `.env.example`.
-7. Set `DASHBOARD_PASSWORD` before putting any real customer data online.
+Use Node 24:
 
-See `docs/deployment.md` for the full checklist.
+```sh
+npm ci --ignore-scripts
+```
 
+Copy `.env.example` to `.env.local`. Leave Supabase variables blank for synthetic local preview, then:
+
+```sh
+npm run dev -- --hostname 127.0.0.1 --port 4179
+npm run check
+npm run build
+```
+
+Demo records live only in this browser. Production never uses demo mode. No Supabase service-role key is needed.
+
+- [Owner launch checklist](docs/OWNER_LAUNCH_CHECKLIST.md)
+- [Deployment and live verification](docs/deployment.md)
+- [Architecture and data model](docs/architecture.md)
+- [Workflow and proposed defaults](docs/workflow.md)
+- [Decision log](docs/decision-log.md)
+- [Deferred work](docs/future-architecture.md)
+
+The only current initial migration is `supabase/migrations/202609180001_dashboard_v1.sql`. Old docs/SQL live under `legacy-reference` and are not installation instructions. Do not migrate the spreadsheet without explicit owner approval.

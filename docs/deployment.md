@@ -1,145 +1,49 @@
-# Deployment Plan - GitHub, Supabase, Vercel
+# Dashboard launch setup
 
-## Plain English Version
+Golden Thread Solutions accounts, separate from the public website. No live credentials or customer records are in this release.
 
-GitHub stores the code.
+## Supabase
 
-Supabase stores the database.
+Proposed: a dedicated `Horizon Strings Operations` project in Sydney, unless the owner deliberately selects an existing dashboard project. Keep the database password in the owner's password manager; the app does not use it.
 
-Vercel hosts the internal dashboard online.
+1. SQL Editor: run **only** `supabase/migrations/202609180001_dashboard_v1.sql`. This first-install transaction is not a reset/repeatable script. Never apply `supabase/legacy-reference` files.
+2. Authentication: disable new-user signup; keep email/password sign-in enabled.
+3. Authentication → Users → Add user → Create user: create two confirmed password users. Use direct creation rather than invitations for initial setup, so no SMTP or outgoing invite is required. Owners enter/retain their own passwords; never paste passwords into a task or source file.
+4. Replace the two email placeholders in `supabase/configure-owners.sql` and run it. It verifies both confirmed accounts before granting access. Do not use browser-editable metadata for owner membership.
+5. Copy the project URL and **publishable** key (or legacy anon key) from API settings. No service-role/secret key, Storage bucket, Edge Function, cron, webhook, Resend or Google key is needed.
 
-The dashboard should eventually work like this:
+Every business table has RLS. Removing a user from `hs_owners` revokes business access, including through the direct database API.
 
-User -> Vercel dashboard -> server-side app logic -> Supabase database -> updated dashboard
+## Vercel
 
-## Current Recommendation
+Import `golden-thread-solutions/horizon-strings-internal-dashboard` into Golden Thread Solutions. Root directory `.`, Next.js, Node 24. `vercel.json` supplies install/build commands. Deploy the approved release branch, then use `main` after merge.
 
-Use the expected stack:
+Set in Production and approved Preview environments:
 
-- GitHub: private repository for the internal dashboard code.
-- Supabase: PostgreSQL database for clients, events, tasks, finance, musicians, repertoire, communications, and notes.
-- Vercel: hosts the Next.js dashboard.
-- Simple dashboard password: temporary protection before proper administrator login.
+- `NEXT_PUBLIC_SUPABASE_URL` — selected project's HTTPS URL.
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` — its publishable or legacy anon key.
 
-Confidence: 8/10.
+Do not set `DASHBOARD_DEMO_MODE`, old Basic Auth variables or a service-role key. Public environment variables are compiled into the bundle, so redeploy when changing them. Start with the generated HTTPS Vercel address; a custom subdomain can wait. Set the Supabase Auth Site URL to that address; password sign-in has no callback route requirement.
 
-This is a sensible small-business setup. The main weak point is that a simple password is not a full permissions system, but it is enough to avoid an accidentally public internal dashboard while we test.
+## Live smoke test (Codex can do after setup)
 
-## Must-Have Before Real Data Goes Online
+- Anonymous browser: login screen, API 401, no records.
+- Auth user absent from `hs_owners`: API denied and direct database reads empty/denied.
+- Each owner: sign in, create a synthetic enquiry, save response/welcome/deposit, reload, and view the same data from the other account.
+- Two stale event editors: second save rejected without overwriting first.
+- Deferred field without trigger/date rejected; valid deferral generates the correct due date.
+- Change a week offset: generated dates update, manual dates remain.
+- Sign out: private screens cleared.
+- Review Settings once. Real customer data waits until persistence, both logins, access restrictions and backups have been verified.
 
-- Private GitHub repository.
-- Vercel project connected to that private repository.
-- `DASHBOARD_PASSWORD` set in Vercel.
-- Supabase project created.
-- Supabase database migration run.
-- Supabase service role key stored only in Vercel environment variables.
-- No service role key committed to GitHub.
+## Recovery
 
-## Nice-To-Have Later
+Confirm the selected Supabase plan's backup/restore facilities before live customer data. Do not assume a free project has automatic recoverable backups. Settings offers a private JSON export as an additional manual backup; there is no self-service import.
 
-- Proper admin login.
-- Role-based permissions.
-- Supabase Row Level Security policies tied to real users.
-- Automated Google Sheets import.
-- Email draft integration.
-- Calendar integration.
+Application rollback: redeploy the prior tested dashboard commit in Vercel. Never use the old v0.5 sample app as a real-data fallback. Never drop tables/reapply the initial migration to fix deployment; database recovery needs a reviewed backup plan.
 
-## Exact Setup Steps
+## Local development
 
-### 1. GitHub
+Node 24; `npm ci --ignore-scripts`; copy `.env.example` to `.env.local`; `npm run dev -- --hostname 127.0.0.1 --port 4179`. Blank Supabase variables plus `DASHBOARD_DEMO_MODE=true` means synthetic browser-local data only. Production with blank variables shows a closed setup screen.
 
-Create a new private repository for the internal dashboard.
-
-Recommended repo name:
-
-`horizon-strings-ops`
-
-Commit and push only the `Horizon Build` folder contents, not the whole `Internal dashboards` folder.
-
-Reason: the parent folder holds unrelated reference docs and other projects.
-
-### 2. Supabase
-
-Create a new Supabase project.
-
-Recommended project name:
-
-`horizon-strings-ops`
-
-Open the SQL editor and run:
-
-`supabase/migrations/0001_initial_horizon_schema.sql`
-
-Then, for test data only, run:
-
-`supabase/seed.sql`
-
-Do not put real customer data in until the dashboard is password-protected online.
-
-### 3. Vercel
-
-Create a new Vercel project from the GitHub repository.
-
-Framework:
-
-`Next.js`
-
-Build command:
-
-`pnpm build`
-
-Install command:
-
-`pnpm install`
-
-Output directory:
-
-Leave as the Vercel default for Next.js.
-
-### 4. Environment Variables
-
-Copy `.env.example` into Vercel's environment variables.
-
-Use:
-
-`DASHBOARD_USERNAME`
-
-`DASHBOARD_PASSWORD`
-
-`NEXT_PUBLIC_SUPABASE_URL`
-
-`SUPABASE_SERVICE_ROLE_KEY`
-
-Leave Supabase values blank until the app is actually switched from local file data to database reads.
-
-### 5. First Online Test
-
-For the first online test, deploy with:
-
-- local dummy data still active;
-- `DASHBOARD_PASSWORD` set;
-- no real customer data;
-- no Supabase connection used by the app yet.
-
-This proves Vercel and GitHub are working without risking customer data.
-
-### 6. Database Connection Step
-
-After the first deployment works, the next build step is to replace `data/horizon.ts` reads with Supabase reads.
-
-Do that in a controlled pass:
-
-- events list first;
-- then individual event pages;
-- then tasks/action queue;
-- then musicians/repertoire/finance pages;
-- then write/edit actions.
-
-## Risks
-
-The biggest risk is accidentally publishing real customer names, emails, phone numbers, wedding dates, or venue details without access protection.
-
-The second risk is using the Supabase service role key in browser code. It must only be used server-side.
-
-The third risk is trying to migrate the full spreadsheet at the same time as deploying. Keep those as separate steps.
-
+`npm run check`: types and workflow/database tests. `npm run build`: production bundle. `npm run preflight`: configuration presence checks without values. A successful build does not verify live credentials, owner access or backups.

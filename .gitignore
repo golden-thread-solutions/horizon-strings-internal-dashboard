@@ -1,5 +1,10 @@
 .next/
 node_modules/
+coverage/
+*.tsbuildinfo
+*.log
+.vercel/
+.env.*
 .pnpm-store/
 .env
 .env*.local

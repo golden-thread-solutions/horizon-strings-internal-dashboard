@@ -1,80 +1,33 @@
-# Horizon Strings Operations Platform - v0.5 Architecture
+# Dashboard architecture
 
-## Purpose
+Private dashboard only. The public website remains a separate project.
 
-This local prototype turns the existing Horizon Strings spreadsheet system into a clickable operations dashboard.
+Browser → Next.js `/api/workspace` → validated owner session → Supabase/Postgres → saved records → derived stage/action queue.
 
-The goal is not to replace the full business system yet. The goal is to prove the data model, workflow, event page layout, and action surfaces before committing to Supabase and Vercel.
+- Next.js 16 / React 19, TypeScript, Zod, Supabase Auth/Postgres, Vercel.
+- Two named owner accounts with shared access to one business. Every API request validates its token through Supabase Auth and checks `hs_owners`. Database row-level security independently checks membership.
+- The app uses the publishable/anon key and the owner's token. No service-role key. No public registration UI, automatic emails, customer-data imports or public enquiry endpoint.
+- The login shell has no business data. Missing production configuration closes access. Explicit local demo mode is development-only and disabled when Supabase is configured.
+- `hs_save_event` saves an event and child rows atomically, with an expected revision. Invalid child data rolls the whole transaction back; stale edits are rejected. Settings also check revisions. Small musician/repertoire directory upserts use the last successful save if edited simultaneously.
+- Stable IDs (`E00001` etc.) come from a database sequence. Array ordering is preserved. The UI keeps unsaved edits when a save fails and warns before leaving an edited event.
+- Stages and generated actions are derived, never maintained as status dropdowns. Lists refresh explicitly so another owner's changes do not replace an unsaved draft.
 
-## Current Stack
+## Tables
 
-- Next.js local app
-- File-based local data in `data/horizon.ts`
-- Business rules in `lib/workflow.ts`
-- Supabase schema prepared, but not connected yet
-- Vercel deployment path prepared, but not deployed yet
-- Optional simple password protection through `DASHBOARD_PASSWORD`
+| Table | Purpose |
+| --- | --- |
+| `hs_owners` | Approved Supabase Auth user IDs |
+| `hs_events` | Identity, date, type, ensemble, area, address, duration, source, notes, milestone dates, revision/archive |
+| `hs_details` | Eight named operational groups with resolution and deferral state |
+| `hs_contacts` | Main, on-day, celebrant, venue, couple and other contacts |
+| `hs_musicians` / `hs_event_musicians` | Directory and event players, fees, confirmation, music, contracts, payment |
+| `hs_pieces` / `hs_event_repertoire` | Catalogue, private music links, requests and arrangements |
+| `hs_finance` | Typed charges, received amounts/dates, invoice reference and other costs |
+| `hs_tasks` | Manual tasks and outbound communications, assignee, due date and completion |
+| `hs_communications` | Contact history |
+| `hs_settings` | Week/day offsets and payment readiness rule |
+| `hs_audit` | Event revision, editing user and timestamp |
 
-## Conceptual Flow
+New tables use `hs_`; no website or historical table is changed. Old SQL/docs are explicitly archived under `legacy-reference` and must not be used for setup. V1 keeps detailed timing/run-sheet content in named resolution groups; it is not a generic custom-fields engine or accounting product.
 
-User -> dashboard page -> workflow rules -> local event data -> visible result
-
-For v0.5, edits are not persisted to a real database. This is intentional. We are avoiding a hard database commitment until the operational model is approved.
-
-## Online v0.5 Flow
-
-For the first online test, the recommended flow is:
-
-User -> Vercel dashboard -> optional password gate -> local dashboard data -> visible result
-
-This proves GitHub and Vercel without exposing real customer data or forcing the database connection too early.
-
-## Supabase v1 Flow
-
-Once the Vercel deployment works, the next flow should be:
-
-User -> Vercel dashboard -> optional password gate -> server-side app logic -> Supabase PostgreSQL -> visible result
-
-The Supabase service role key must stay server-side. Do not expose it in browser code.
-
-## Source Material Used
-
-- Horizon Strings website brief as business context only
-- Current Google Sheet: `Event Details`
-- Current Google Doc: Important doc
-- Pasted Apps Script source
-
-## Event Details Mapping
-
-The live `Event Details` workbook has now been read directly and mapped into CRM concepts.
-
-Key tabs inspected:
-
-- `Clients`
-- `Client Sheet Template`
-- client event tabs such as `Sample Client - E9001`
-- `Tasks`
-- `Finance`
-- `Musicians`
-- `Arrangements`
-- `Settings`
-- `Task Rules`
-- `Template Map`
-- hidden structured tabs such as `Event Overview`, `Client Tasks`, `Client progression`, `Event timing`, `Event logistics`, `Contact details`, and `Event repertoire`
-
-The detailed mapping is documented in:
-
-`docs/sheet-crm-mapping.md`
-
-## Apps Script Logic Preserved Conceptually
-
-The script currently manages:
-
-- new client sheet creation
-- event IDs
-- client index rows
-- current vs archived client sheets
-- hub refreshes for finance, musicians, pending tasks, and pending arrangements
-- formatting rules for N/A and missing fields
-
-In the web app, these become normal app views and rules rather than manual refresh buttons.
+References: [Supabase Auth](https://supabase.com/docs/guides/auth), [row-level security](https://supabase.com/docs/guides/database/postgres/row-level-security), [password sign-in](https://supabase.com/docs/reference/javascript/auth-signinwithpassword).
