@@ -10,6 +10,16 @@
 - Anonymous production API read and write returned 401; responses included no-store/private cache control and frame protection.
 - Git whitespace/diff check passed.
 
-Not verified yet: a hosted Supabase project's credentials, owner accounts, external Auth settings, real network persistence between two owners, Vercel deployment and backup/restore. These require the account setup in the owner checklist. Local/demo/embedded tests are not a claim of completed live deployment.
+Live setup completed on 18 September 2026:
+
+- Applied the V1 migration in the owner's existing Supabase project `rqsdieaugozncjsmhcgd`. Preflight found two website tables, no dashboard tables and no Auth users.
+- Verified 13 dashboard tables have RLS, initial settings exist, anonymous table privileges are absent and owner membership is empty. A rollback-only database verification passed non-owner reads/RPC/save denial, owner self-grant denial, anonymous event/RPC denial and preservation of website table RLS.
+- Disabled public signup; email sign-in remains enabled. Public Auth settings endpoint verified both. Anonymous sign-in remains disabled and email confirmation remains enabled.
+- Configured the Vercel project under Golden Thread Solutions with only the project URL and publishable key in Production/Preview. The deployed `main` release initially used commit `e711a4b`; runtime Node 24 verified.
+- Production sign-in page verified in Chrome at `https://horizon-strings-internal-dashboard-kappa.vercel.app/`. Supabase Auth Site URL set to this address.
+- Live HTTP checks passed: direct public event read 401; public workspace RPC 401; deployed anonymous GET/POST 401 with no-store; production page 200 with `X-Frame-Options: DENY`.
+- The Supabase Backups screen confirms Free does not include project backups. No upgrade or paid backup was purchased.
+
+Not verified yet: either owner sign-in, authenticated persistence/stale edits between two owners, or backup/restore. No Auth users or dashboard owner grants have been created, and no real customer data has been imported. These remaining dependencies are in the owner checklist.
 
 The local disk filled during package install/compiler caching. Unused npm cache and this dashboard's generated Next.js cache were reclaimed; persistent compiler caches were disabled. Source files, the website and original archived folders were preserved. Future local development will benefit from more free disk space; remote deployment is not dependent on that cleanup.
