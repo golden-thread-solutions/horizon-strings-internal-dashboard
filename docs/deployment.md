@@ -1,29 +1,29 @@
 # Dashboard launch setup
 
-Golden Thread Solutions accounts, separate from the public website. No live credentials or customer records are in this release.
+Golden Thread Solutions accounts. The dashboard has a separate Vercel project and shares the existing Horizon Strings Supabase project with the public website. No secret credentials or customer records are in source control.
 
 ## Supabase
 
-Proposed: a dedicated `Horizon Strings Operations` project in Sydney, unless the owner deliberately selects an existing dashboard project. Keep the database password in the owner's password manager; the app does not use it.
+The owner selected the existing **Horizon Strings** project `rqsdieaugozncjsmhcgd` (Sydney) on 18 September 2026. The dashboard uses separate `hs_` tables; the website tables were not changed. Do not create another project. Keep the database password in the owner's password manager; the app does not use it.
 
-1. SQL Editor: run **only** `supabase/migrations/202609180001_dashboard_v1.sql`. This first-install transaction is not a reset/repeatable script. Never apply `supabase/legacy-reference` files.
-2. Authentication: disable new-user signup; keep email/password sign-in enabled.
+1. **Already applied:** `supabase/migrations/202609180001_dashboard_v1.sql` through SQL Editor on 18 September 2026. All 13 dashboard tables have RLS. This first-install transaction is not a reset/repeatable script; do not run it again. Never apply `supabase/legacy-reference` files.
+2. **Already configured:** public signup disabled, email/password sign-in enabled, anonymous sign-in disabled, email confirmation retained.
 3. Authentication → Users → Add user → Create user: create two confirmed password users. Use direct creation rather than invitations for initial setup, so no SMTP or outgoing invite is required. Owners enter/retain their own passwords; never paste passwords into a task or source file.
 4. Replace the two email placeholders in `supabase/configure-owners.sql` and run it. It verifies both confirmed accounts before granting access. Do not use browser-editable metadata for owner membership.
-5. Copy the project URL and **publishable** key (or legacy anon key) from API settings. No service-role/secret key, Storage bucket, Edge Function, cron, webhook, Resend or Google key is needed.
+5. **Already configured:** the existing project URL and publishable key are in the Vercel Production/Preview environments and ignored local `.env.local`. No service-role/secret key, Storage bucket, Edge Function, cron, webhook, Resend or Google key is needed.
 
 Every business table has RLS. Removing a user from `hs_owners` revokes business access, including through the direct database API.
 
 ## Vercel
 
-Import `golden-thread-solutions/horizon-strings-internal-dashboard` into Golden Thread Solutions. Root directory `.`, Next.js, Node 24. `vercel.json` supplies install/build commands. Deploy the approved release branch, then use `main` after merge.
+Project: [horizon-strings-internal-dashboard](https://vercel.com/golden-thread-solutions/horizon-strings-internal-dashboard). Production: [Horizon Strings Operations](https://horizon-strings-internal-dashboard-kappa.vercel.app/). Connected repository: `golden-thread-solutions/horizon-strings-internal-dashboard`, branch `main`, root `.`, Next.js, Node 24. `vercel.json` supplies install/build commands. Sydney (`syd1`) is the selected function region to match the database.
 
 Set in Production and approved Preview environments:
 
 - `NEXT_PUBLIC_SUPABASE_URL` — selected project's HTTPS URL.
 - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` — its publishable or legacy anon key.
 
-Do not set `DASHBOARD_DEMO_MODE`, old Basic Auth variables or a service-role key. Public environment variables are compiled into the bundle, so redeploy when changing them. Start with the generated HTTPS Vercel address; a custom subdomain can wait. Set the Supabase Auth Site URL to that address; password sign-in has no callback route requirement.
+Do not set `DASHBOARD_DEMO_MODE`, old Basic Auth variables or a service-role key. Public environment variables are compiled into the bundle, so redeploy when changing them. Supabase Auth Site URL is configured as `https://horizon-strings-internal-dashboard-kappa.vercel.app`; password sign-in has no callback route requirement. A custom subdomain can wait.
 
 ## Live smoke test (Codex can do after setup)
 
@@ -38,7 +38,7 @@ Do not set `DASHBOARD_DEMO_MODE`, old Basic Auth variables or a service-role key
 
 ## Recovery
 
-Confirm the selected Supabase plan's backup/restore facilities before live customer data. Do not assume a free project has automatic recoverable backups. Settings offers a private JSON export as an additional manual backup; there is no self-service import.
+The project's Backups screen confirms that its Free plan does not include project backups. The owner still needs to choose a paid scheduled-backup plan or an agreed manual backup/restore process before entering real customer data. No paid upgrade was made. Settings offers a private JSON export as an additional manual backup; there is no self-service import.
 
 Application rollback: redeploy the prior tested dashboard commit in Vercel. Never use the old v0.5 sample app as a real-data fallback. Never drop tables/reapply the initial migration to fix deployment; database recovery needs a reviewed backup plan.
 
@@ -47,3 +47,5 @@ Application rollback: redeploy the prior tested dashboard commit in Vercel. Neve
 Node 24; `npm ci --ignore-scripts`; copy `.env.example` to `.env.local`; `npm run dev -- --hostname 127.0.0.1 --port 4179`. Blank Supabase variables plus `DASHBOARD_DEMO_MODE=true` means synthetic browser-local data only. Production with blank variables shows a closed setup screen.
 
 `npm run check`: types and workflow/database tests. `npm run build`: production bundle. `npm run preflight`: configuration presence checks without values. A successful build does not verify live credentials, owner access or backups.
+
+`node --env-file=.env.local scripts/verify-live-access.mjs https://horizon-strings-internal-dashboard-kappa.vercel.app` checks public API denial, signup settings, deployed anonymous GET/POST denial and framing protection. It does not test either owner's sign-in or authenticated event persistence.

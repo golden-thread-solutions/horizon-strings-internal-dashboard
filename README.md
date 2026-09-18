@@ -4,7 +4,7 @@ Private, two-owner event workspace. The public website is a separate project.
 
 Implemented: name-only enquiries, derived stages, pending tasks/outbound communications, a continuous event editor, explicit unknown/filled/not-applicable/deferred detail states, week-based workflow settings, contacts, musicians, repertoire/arrangements, payment tracking, contact history and archive rules.
 
-Prepared for live use: Supabase owner authentication/RLS, atomic event saves, concurrent-edit protection, migrations, environment template, Vercel settings and automated checks. **Live account configuration and end-to-end production verification remain pending.** No real customer data is included.
+Deployed at [Horizon Strings Operations](https://horizon-strings-internal-dashboard-kappa.vercel.app/), connected to the existing Horizon Strings Supabase project. The dashboard migration, private access rules, public-signup restriction and production environment are configured. Anonymous live access checks passed. **Owner accounts, authenticated end-to-end verification and a backup decision remain pending.** No real customer data is included.
 
 ## Run locally
 

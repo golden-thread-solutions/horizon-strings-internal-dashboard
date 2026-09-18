@@ -14,4 +14,6 @@
 | npm lockfile, Node 24, pinned current dependencies | Reproducible builds; remove conflicting package-manager locks |
 | Disable persistent development compiler cache | This workstation ran out of disk during verification; no product data is affected |
 
-Still pending activation: live database, two owner accounts, Vercel configuration and a live smoke test. No live spreadsheet import is approved. Proposed defaults and setup choices are consolidated in the owner checklist.
+On 18 September 2026 the owner selected the existing Horizon Strings Supabase project `rqsdieaugozncjsmhcgd` and authorized browser setup. Dashboard tables/RLS and Auth restrictions are applied; Vercel is deployed under Golden Thread Solutions with the existing publishable key. The website tables remain unchanged. No additional Supabase project or paid upgrade was created.
+
+Still pending: the two owner accounts and approved owner email addresses, authenticated live checks, backup/restore choice and confirmation of the provisional workflow defaults. No live spreadsheet import is approved. Only remaining owner actions belong in the owner checklist; completed setup is recorded here and in VERIFICATION.md.
