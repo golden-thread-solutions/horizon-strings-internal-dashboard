@@ -24,7 +24,6 @@ npm run build
 
 Demo records live only in this browser. Production never uses demo mode. No Supabase service-role key is needed.
 
-- [Owner launch checklist](docs/OWNER_LAUNCH_CHECKLIST.md)
 - [Deployment and live verification](docs/deployment.md)
 - [Architecture and data model](docs/architecture.md)
 - [Workflow and proposed defaults](docs/workflow.md)
