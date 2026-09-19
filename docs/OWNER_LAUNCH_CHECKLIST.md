@@ -1,13 +1,22 @@
-- [ ] Create your two owner sign-ins in [Supabase → Authentication → Users](https://supabase.com/dashboard/project/rqsdieaugozncjsmhcgd/auth/users).
-    - [ ] Choose the two owner email addresses, confirming whether yours is `koby@horizonstrings.com.au`.
-    - [ ] Use **Add user → Create user** for each owner, enter a private password and keep **Auto Confirm User** enabled.
-    - [ ] Tell me the two emails to authorise for dashboard access; do not send passwords. I will apply the owner grants and finish the authenticated checks.
+- [ ] Confirm that I may grant `koby@horizonstrings.com.au` owner access to the private dashboard records.
+    - The Supabase Auth account already exists and is email-confirmed.
+    - Do not send the password; I only need your confirmation to apply the owner membership.
 
-- [ ] Choose a backup approach before entering real customer data: upgrade Supabase for scheduled backups, or agree a manual backup and restore process with me.
+- [ ] Configure the independent production backup in GitHub and Cloudflare R2.
+    - [ ] Create a dedicated private R2 bucket for database backups; keep public access disabled.
+    - [ ] Create a least-privilege R2 access key that can upload, read and delete objects in that bucket.
+    - [ ] Add these GitHub Actions secrets in the dashboard repository:
+        - `SUPABASE_DB_URL` — the production PostgreSQL connection string.
+        - `R2_ENDPOINT` — the Cloudflare R2 S3 endpoint.
+        - `R2_BUCKET` — the dedicated private bucket name.
+        - `R2_ACCESS_KEY_ID` and `R2_SECRET_ACCESS_KEY` — the R2 key pair.
+        - `BACKUP_ENCRYPTION_KEY` — a long random passphrase stored in your password manager as well.
+    - [ ] Run **Actions → External database backup → Run workflow** once and confirm it succeeds.
+    - [ ] Arrange the first restore test into a separate test database, then repeat a restore test at least monthly.
+    - The workflow is already prepared to run every 6 hours, encrypt archives, verify the uploaded checksum and size, and retain about 30 days.
+    - The current V1 dashboard does not use Supabase Storage for business files; a separate object-backup workflow will be needed if that changes.
 
-- [ ] Confirm the proposed workflow defaults, or reply with only the changes you want.
-    - [ ] Confirm deadlines before the event: musicians/internal preparation **12 weeks**, repertoire **6 weeks**, arrangements **4 weeks**, rehearsal **3 weeks**, final details **2 weeks**, final confirmation/balance **1 week**; post-event follow-up **7 days afterwards**.
-    - [ ] Confirm that **Event Ready** requires resolved details, confirmed musicians with music, approved repertoire, final confirmation, completed pre-event tasks and full client payment; say if payment should not be required.
-
-- [ ] After I grant owner access, sign in to the [live dashboard](https://horizon-strings-internal-dashboard-kappa.vercel.app/) for the final live checks.
-    - [ ] After those checks pass, try one sample event before entering real clients.
+- [ ] Sign in to the [live dashboard](https://horizon-strings-internal-dashboard-kappa.vercel.app/) after owner access is granted.
+    - [ ] Create one synthetic event, save it, reload it and confirm the workflow dates.
+    - [ ] Confirm the saved workflow rules: 12/12/8/8/4/4/2 weeks before the event, thank-you after 3 days, review on the next Thursday, and Event Ready does not require full invoice payment.
+    - [ ] Enter real customer data only after the first backup and restore test succeeds.
