@@ -1,6 +1,4 @@
 - [ ] Confirm that I may grant `koby@horizonstrings.com.au` owner access to the private dashboard records.
-    - The Supabase Auth account already exists and is email-confirmed.
-    - Do not send the password; I only need your confirmation to apply the owner membership.
 
 - [ ] Configure the independent production backup in GitHub and Cloudflare R2.
     - [ ] Create a dedicated private R2 bucket for database backups; keep public access disabled.
@@ -13,8 +11,6 @@
         - `BACKUP_ENCRYPTION_KEY` — a long random passphrase stored in your password manager as well.
     - [ ] Run **Actions → External database backup → Run workflow** once and confirm it succeeds.
     - [ ] Arrange the first restore test into a separate test database, then repeat a restore test at least monthly.
-    - The workflow is already prepared to run every 6 hours, encrypt archives, verify the uploaded checksum and size, and retain about 30 days.
-    - The current V1 dashboard does not use Supabase Storage for business files; a separate object-backup workflow will be needed if that changes.
 
 - [ ] Sign in to the [live dashboard](https://horizon-strings-internal-dashboard-kappa.vercel.app/) after owner access is granted.
     - [ ] Create one synthetic event, save it, reload it and confirm the workflow dates.
