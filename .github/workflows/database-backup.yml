@@ -53,7 +53,6 @@ jobs:
           umask 077
           timestamp="$(date -u +%Y-%m-%dT%H%M%SZ)"
           run_dir="$(mktemp -d)"
-          trap 'rm -rf "$run_dir"' EXIT
           archive="horizon-${timestamp}.tar.gz"
           encrypted="${archive}.gpg"
           metadata="$run_dir/metadata.json"
