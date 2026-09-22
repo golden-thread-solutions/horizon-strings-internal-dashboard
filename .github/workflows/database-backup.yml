@@ -31,7 +31,7 @@ jobs:
       - name: Install backup tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends age
+          sudo apt-get install -y --no-install-recommends gnupg
           docker pull postgres:17
 
       - name: Validate configuration without printing secrets
@@ -55,7 +55,7 @@ jobs:
           run_dir="$(mktemp -d)"
           trap 'rm -rf "$run_dir"' EXIT
           archive="horizon-${timestamp}.tar.gz"
-          encrypted="${archive}.age"
+          encrypted="${archive}.gpg"
           metadata="$run_dir/metadata.json"
 
           docker run --rm \
@@ -72,14 +72,15 @@ jobs:
             "timestamp": "$timestamp",
             "environment": "production",
             "supabase_project": "rqsdieaugozncjsmhcgd",
-            "format": "pg_dump custom + pg_dumpall roles, gzip, age passphrase encryption",
-            "workflow_version": "external-database-backup-v1",
+            "format": "pg_dump custom + pg_dumpall roles, gzip, GPG AES-256 symmetric encryption",
+            "workflow_version": "external-database-backup-v2",
             "git_commit": "${GITHUB_SHA}"
           }
           EOF
           tar -C "$run_dir" -czf "$run_dir/$archive" production.dump roles.sql metadata.json
           printf '%s' "$BACKUP_ENCRYPTION_KEY" > "$run_dir/passphrase"
-          age --passphrase-file "$run_dir/passphrase" --output "$run_dir/$encrypted" "$run_dir/$archive"
+          gpg --batch --yes --pinentry-mode loopback --passphrase-file "$run_dir/passphrase" \
+            --symmetric --cipher-algo AES256 --output "$run_dir/$encrypted" "$run_dir/$archive"
           sha256sum "$run_dir/$encrypted" > "$run_dir/$encrypted.sha256"
           test -s "$run_dir/$encrypted"
           test -s "$run_dir/$encrypted.sha256"
