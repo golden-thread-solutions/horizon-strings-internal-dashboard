@@ -80,7 +80,10 @@ jobs:
           printf '%s' "$BACKUP_ENCRYPTION_KEY" > "$run_dir/passphrase"
           gpg --batch --yes --pinentry-mode loopback --passphrase-file "$run_dir/passphrase" \
             --symmetric --cipher-algo AES256 --output "$run_dir/$encrypted" "$run_dir/$archive"
-          sha256sum "$run_dir/$encrypted" > "$run_dir/$encrypted.sha256"
+          (
+            cd "$run_dir"
+            sha256sum "$encrypted" > "$encrypted.sha256"
+          )
           test -s "$run_dir/$encrypted"
           test -s "$run_dir/$encrypted.sha256"
           echo "timestamp=$timestamp" >> "$GITHUB_OUTPUT"
