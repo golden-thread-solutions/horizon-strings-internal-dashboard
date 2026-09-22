@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useWorkspace } from "./Workspace";
-import { Field, Notes, errorMessage, Section } from "./Controls";
+import { Field, Notes, Select, errorMessage, Section } from "./Controls";
 import type { Musician, Piece } from "@/lib/model";
 import { formatDate, weeksBefore } from "@/lib/workflow";
 export function MusicianCatalogue() {
@@ -223,6 +223,8 @@ export function RepertoireCatalogue() {
               title: "",
               artist: "",
               musicUrl: "",
+              genre: "",
+              weddingSuitable: "Unreviewed",
               notes: "",
             });
             setError("");
@@ -251,6 +253,38 @@ export function RepertoireCatalogue() {
               type="url"
               value={draft.musicUrl}
               onChange={(v) => setDraft({ ...draft, musicUrl: v })}
+            />
+            <Select
+              label="Genre"
+              value={draft.genre}
+              options={[
+                "",
+                "Classical",
+                "Traditional",
+                "Pop / vocal",
+                "Jazz",
+                "Film / game music",
+                "Contemporary – rock",
+                "Contemporary – pop",
+                "Musical theatre",
+                "Folk / acoustic",
+                "Sacred / religious",
+                "Other",
+              ]}
+              onChange={(v) =>
+                setDraft({ ...draft, genre: v as Piece["genre"] })
+              }
+            />
+            <Select
+              label="Wedding suitable"
+              value={draft.weddingSuitable}
+              options={["Unreviewed", "Yes", "No"]}
+              onChange={(v) =>
+                setDraft({
+                  ...draft,
+                  weddingSuitable: v as Piece["weddingSuitable"],
+                })
+              }
             />
           </div>
           <Notes
@@ -322,7 +356,7 @@ export function RepertoireCatalogue() {
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Piece or composer"
+            placeholder="Piece, composer or genre"
           />
         </label>
         <div className="table-wrap">
@@ -331,6 +365,8 @@ export function RepertoireCatalogue() {
               <tr>
                 <th>Piece</th>
                 <th>Composer / artist</th>
+                <th>Genre</th>
+                <th>Wedding suitable</th>
                 <th>Music</th>
                 <th>Notes</th>
               </tr>
@@ -338,7 +374,7 @@ export function RepertoireCatalogue() {
             <tbody>
               {data.pieces
                 .filter((p) =>
-                  `${p.title} ${p.artist}`
+                  `${p.title} ${p.artist} ${p.genre}`
                     .toLowerCase()
                     .includes(search.toLowerCase()),
                 )
@@ -356,6 +392,8 @@ export function RepertoireCatalogue() {
                       </button>
                     </td>
                     <td>{p.artist}</td>
+                    <td>{p.genre || "—"}</td>
+                    <td>{p.weddingSuitable}</td>
                     <td>
                       {p.musicUrl && (
                         <a href={p.musicUrl} target="_blank" rel="noreferrer">

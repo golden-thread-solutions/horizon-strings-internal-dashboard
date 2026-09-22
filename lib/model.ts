@@ -41,12 +41,6 @@ export const resolutionSchema = z
     trigger: z.enum(["", "Internal Organisation", "Final Details"]),
   })
   .superRefine((v, c) => {
-    if (v.state === "Filled" && !v.value.trim())
-      c.addIssue({
-        code: "custom",
-        message: "A filled detail needs a value",
-        path: ["value"],
-      });
     if (v.state === "Deferred" && !v.dueDate && !v.trigger)
       c.addIssue({
         code: "custom",
@@ -55,6 +49,18 @@ export const resolutionSchema = z
       });
   });
 export type Resolution = z.infer<typeof resolutionSchema>;
+const operationalValue = z.union([text, z.number().finite()]);
+export const operationalDetailsSchema = z.object(
+  Object.fromEntries(
+    detailKeys.map((key) => [
+      key,
+      z.record(z.string(), operationalValue).default({}),
+    ]),
+  ) as Record<
+    DetailKey,
+    z.ZodDefault<z.ZodRecord<z.ZodString, typeof operationalValue>>
+  >,
+);
 const contactSchema = z.object({
   id: z.uuid(),
   role: short,
@@ -79,6 +85,23 @@ export const pieceSchema = z.object({
     z.url().refine((v) => /^https?:\/\//.test(v), "Use an http or https link"),
     z.literal(""),
   ]),
+  genre: z
+    .enum([
+      "",
+      "Classical",
+      "Traditional",
+      "Pop / vocal",
+      "Jazz",
+      "Film / game music",
+      "Contemporary – rock",
+      "Contemporary – pop",
+      "Musical theatre",
+      "Folk / acoustic",
+      "Sacred / religious",
+      "Other",
+    ])
+    .default(""),
+  weddingSuitable: z.enum(["Unreviewed", "Yes", "No"]).default("Unreviewed"),
   notes: text,
 });
 export const taskSchema = z.object({
@@ -161,6 +184,16 @@ export const eventSchema = z
         detailKeys.map((k) => [k, resolutionSchema]),
       ) as Record<DetailKey, typeof resolutionSchema>,
     ),
+    operational: operationalDetailsSchema.default({
+      timing: {},
+      venueSetup: {},
+      wetWeather: {},
+      onDayContact: {},
+      repertoireBrief: {},
+      rehearsal: {},
+      logistics: {},
+      runSheet: {},
+    }),
     contacts: z.array(contactSchema).max(40),
     musicians: z
       .array(
@@ -279,11 +312,30 @@ export const eventSchema = z
 export type EventRecord = z.infer<typeof eventSchema>;
 export type Musician = z.infer<typeof musicianSchema>;
 export type Piece = z.infer<typeof pieceSchema>;
+export const websiteEnquirySchema = z.object({
+  id: z.uuid(),
+  createdAt: z.string().min(1).max(64),
+  name: z.string().trim().min(1).max(120),
+  email: z.email(),
+  phone: z.string().max(40),
+  preferredContact: z.enum(["email", "text", "call"]),
+  eventDate: date,
+  venue: z.string().max(200),
+  area: z.string().max(160),
+  message: z.string().max(5000),
+  weddingPackage: z.string().max(40),
+  requestedEnsemble: z.string().max(40),
+  emailStatus: z.enum(["pending", "sent", "failed"]),
+  dashboardStatus: z.enum(["new", "converted"]),
+  dashboardEventId: z.union([z.uuid(), z.literal("")]),
+});
+export type WebsiteEnquiry = z.infer<typeof websiteEnquirySchema>;
 export type Dataset = {
   events: EventRecord[];
   settings: Settings;
   musicians: Musician[];
   pieces: Piece[];
+  websiteEnquiries: WebsiteEnquiry[];
 };
 export function newEvent(name: string, today: string): EventRecord {
   return {
@@ -308,6 +360,16 @@ export function newEvent(name: string, today: string): EventRecord {
         { state: "Unknown", value: "", dueDate: "", trigger: "" },
       ]),
     ) as EventRecord["details"],
+    operational: {
+      timing: {},
+      venueSetup: {},
+      wetWeather: {},
+      onDayContact: {},
+      repertoireBrief: {},
+      rehearsal: {},
+      logistics: {},
+      runSheet: {},
+    },
     contacts: [],
     musicians: [],
     repertoire: [],

@@ -52,6 +52,112 @@ const detailsHints: Record<keyof typeof detailLabels, string> = {
   runSheet:
     "Confirmed sequence and timing of the day. Defer to Final Details if appropriate.",
 };
+type OperationalField = {
+  key: string;
+  label: string;
+  type?: "text" | "number" | "date" | "time";
+  multiline?: boolean;
+};
+const operationalFields: Record<keyof typeof detailLabels, OperationalField[]> =
+  {
+    timing: [
+      { key: "arrivalTime", label: "Arrival time", type: "time" },
+      { key: "playStartTime", label: "Playing starts", type: "time" },
+      {
+        key: "preCeremonyMinutes",
+        label: "Pre-ceremony music (minutes)",
+        type: "number",
+      },
+      { key: "ceremonyStartTime", label: "Ceremony starts", type: "time" },
+      {
+        key: "ceremonyDurationMinutes",
+        label: "Ceremony duration (minutes)",
+        type: "number",
+      },
+      {
+        key: "remainingPlayMinutes",
+        label: "Remaining playing time (minutes)",
+        type: "number",
+      },
+      {
+        key: "postCeremonyDetails",
+        label: "Post-ceremony timing and details",
+        multiline: true,
+      },
+      { key: "otherStartTime", label: "Other playing starts", type: "time" },
+      { key: "otherFinishTime", label: "Other playing finishes", type: "time" },
+    ],
+    venueSetup: [
+      { key: "insideOutside", label: "Inside / outside" },
+      {
+        key: "playingPosition",
+        label: "Playing position at venue",
+        multiline: true,
+      },
+      { key: "arrivalAddress", label: "Arrival / setup address" },
+      { key: "secondLocation", label: "Second location or venue" },
+      { key: "secondAddress", label: "Second address" },
+      {
+        key: "movementDetails",
+        label: "Movement and setup notes",
+        multiline: true,
+      },
+    ],
+    wetWeather: [
+      { key: "plan", label: "Wet-weather plan", multiline: true },
+      { key: "alternativeArea", label: "Alternative area / room" },
+      { key: "alternativeAddress", label: "Alternative address" },
+      { key: "rainCallTime", label: "Rain decision time", type: "time" },
+      { key: "decisionMaker", label: "Who makes the weather call" },
+      {
+        key: "shelterDetails",
+        label: "Shelter and weather notes",
+        multiline: true,
+      },
+    ],
+    onDayContact: [
+      { key: "name", label: "On-the-day contact name" },
+      { key: "role", label: "Role" },
+      { key: "phone", label: "Phone" },
+      { key: "notes", label: "Contact notes", multiline: true },
+    ],
+    repertoireBrief: [
+      { key: "genrePreference", label: "General genre preference" },
+      { key: "ceremonyNotes", label: "Ceremony music notes", multiline: true },
+      { key: "groomsmenEntry", label: "Groomsmen entry" },
+      { key: "bridalPartyEntry", label: "Bridal party / processional" },
+      { key: "registerSigning", label: "Register signing" },
+      { key: "recessional", label: "Recessional" },
+      { key: "receptionEntrance", label: "Reception entrance" },
+      { key: "firstDance", label: "First dance" },
+      { key: "otherRequests", label: "Other music requests", multiline: true },
+    ],
+    rehearsal: [
+      { key: "date", label: "Rehearsal date", type: "date" },
+      { key: "location", label: "Rehearsal location" },
+      { key: "participants", label: "Participants" },
+      { key: "travelDetails", label: "Travel details" },
+      { key: "notes", label: "Rehearsal notes", multiline: true },
+    ],
+    logistics: [
+      { key: "secretSignal", label: "Secret / ceremony signal" },
+      { key: "chairs", label: "Chairs" },
+      { key: "shelter", label: "Gazebo / shelter" },
+      { key: "dressCode", label: "Dress code" },
+      { key: "amplification", label: "Amplification" },
+      { key: "guestCount", label: "Guest count", type: "number" },
+      { key: "other", label: "Other logistics", multiline: true },
+    ],
+    runSheet: [
+      { key: "details", label: "Confirmed running order", multiline: true },
+      { key: "notes", label: "Running-order notes", multiline: true },
+    ],
+  };
+function hasOperationalInfo(values: Record<string, string | number>) {
+  return Object.values(values).some((value) =>
+    typeof value === "number" ? value > 0 : value.trim().length > 0,
+  );
+}
 export function EventEditor({ event }: { event: EventRecord }) {
   const { data, saveEvent, refresh } = useWorkspace();
   const [draft, setDraft] = useState(() => structuredClone(event));
@@ -446,68 +552,124 @@ export function EventEditor({ event }: { event: EventRecord }) {
             className={`resolution-row state-${draft.details[k].state.toLowerCase().replace(" ", "-")}`}
             key={k}
           >
-            <div>
-              <strong>{detailLabels[k]}</strong>
-              <p className="muted">{detailsHints[k]}</p>
-            </div>
-            <div>
-              <Select
-                label={`${detailLabels[k]} status`}
-                value={draft.details[k].state}
-                options={["Unknown", "Filled", "Not Applicable", "Deferred"]}
-                onChange={(v) =>
+            <div className="resolution-heading">
+              <div>
+                <strong>{detailLabels[k]}</strong>
+                <p className="muted">{detailsHints[k]}</p>
+              </div>
+              <Check
+                label="N/A"
+                checked={draft.details[k].state === "Not Applicable"}
+                onChange={(checked) =>
                   change((e) => {
-                    e.details[k].state = v as Resolution["state"];
+                    e.details[k].state = checked
+                      ? "Not Applicable"
+                      : hasOperationalInfo(e.operational[k]) ||
+                          Boolean(e.details[k].value.trim())
+                        ? "Filled"
+                        : "Unknown";
                   })
                 }
               />
-              <Notes
-                label={`${detailLabels[k]} information`}
-                value={draft.details[k].value}
-                onChange={(v) =>
-                  change((e) => {
-                    e.details[k].value = v;
-                    if (e.details[k].state === "Unknown" && v.trim())
-                      e.details[k].state = "Filled";
-                    if (e.details[k].state === "Filled" && !v.trim())
-                      e.details[k].state = "Unknown";
-                  })
-                }
-              />
-              {draft.details[k].state === "Deferred" && (
-                <>
-                  <div className="field-grid two">
-                    <Field
-                      label="Resolve on date"
-                      type="date"
-                      value={draft.details[k].dueDate}
-                      onChange={(v) =>
-                        change((e) => {
-                          e.details[k].dueDate = v;
-                          if (v) e.details[k].trigger = "";
-                        })
-                      }
-                    />
-                    <Select
-                      label="Or resolve at stage"
-                      value={draft.details[k].trigger}
-                      options={["", "Internal Organisation", "Final Details"]}
-                      onChange={(v) =>
-                        change((e) => {
-                          e.details[k].trigger = v as Resolution["trigger"];
-                          if (v) e.details[k].dueDate = "";
-                        })
-                      }
-                    />
-                  </div>
-                  <p className="muted">
-                    {deferredDate(draft, k, settings)
-                      ? `Due ${formatDate(deferredDate(draft, k, settings))}`
-                      : "Choose a date or stage. A stage trigger also needs an event date to calculate its due date."}
-                  </p>
-                </>
-              )}
             </div>
+            {draft.details[k].state !== "Not Applicable" && (
+              <div className="resolution-body">
+                <Select
+                  label={`${detailLabels[k]} status`}
+                  value={draft.details[k].state}
+                  options={["Unknown", "Filled", "Not Applicable", "Deferred"]}
+                  onChange={(v) =>
+                    change((e) => {
+                      e.details[k].state = v as Resolution["state"];
+                    })
+                  }
+                />
+                <div className="field-grid two operational-fields">
+                  {operationalFields[k].map((field) => {
+                    const current = draft.operational[k][field.key] ?? "";
+                    const update = (value: string) =>
+                      change((e) => {
+                        e.operational[k][field.key] =
+                          field.type === "number" ? Number(value) : value;
+                        const hasInfo =
+                          hasOperationalInfo(e.operational[k]) ||
+                          Boolean(e.details[k].value.trim());
+                        if (e.details[k].state === "Unknown" && hasInfo)
+                          e.details[k].state = "Filled";
+                        if (e.details[k].state === "Filled" && !hasInfo)
+                          e.details[k].state = "Unknown";
+                      });
+                    return field.multiline ? (
+                      <Notes
+                        key={field.key}
+                        label={field.label}
+                        value={String(current)}
+                        onChange={update}
+                      />
+                    ) : (
+                      <Field
+                        key={field.key}
+                        label={field.label}
+                        type={field.type}
+                        min={field.type === "number" ? 0 : undefined}
+                        value={current}
+                        onChange={update}
+                      />
+                    );
+                  })}
+                </div>
+                <Notes
+                  label="Additional notes"
+                  value={draft.details[k].value}
+                  onChange={(v) =>
+                    change((e) => {
+                      e.details[k].value = v;
+                      if (e.details[k].state === "Unknown" && v.trim())
+                        e.details[k].state = "Filled";
+                      if (
+                        e.details[k].state === "Filled" &&
+                        !v.trim() &&
+                        !hasOperationalInfo(e.operational[k])
+                      )
+                        e.details[k].state = "Unknown";
+                    })
+                  }
+                />
+                {draft.details[k].state === "Deferred" && (
+                  <>
+                    <div className="field-grid two">
+                      <Field
+                        label="Resolve on date"
+                        type="date"
+                        value={draft.details[k].dueDate}
+                        onChange={(v) =>
+                          change((e) => {
+                            e.details[k].dueDate = v;
+                            if (v) e.details[k].trigger = "";
+                          })
+                        }
+                      />
+                      <Select
+                        label="Or resolve at stage"
+                        value={draft.details[k].trigger}
+                        options={["", "Internal Organisation", "Final Details"]}
+                        onChange={(v) =>
+                          change((e) => {
+                            e.details[k].trigger = v as Resolution["trigger"];
+                            if (v) e.details[k].dueDate = "";
+                          })
+                        }
+                      />
+                    </div>
+                    <p className="muted">
+                      {deferredDate(draft, k, settings)
+                        ? `Due ${formatDate(deferredDate(draft, k, settings))}`
+                        : "Choose a date or stage. A stage trigger also needs an event date to calculate its due date."}
+                    </p>
+                  </>
+                )}
+              </div>
+            )}
           </div>
         ))}
       </Section>
@@ -778,63 +940,42 @@ export function EventEditor({ event }: { event: EventRecord }) {
             Estimated profit <strong>{money(profit(draft))}</strong>
           </span>
         </div>
-        <div className="field-grid">
-          {(
-            [
-              ["performance", "Performance fee"],
-              ["travel", "Travel fee"],
-              ["arrangements", "Arrangement fee"],
-              ["otherCharges", "Other client charges"],
-              ["depositRequired", "Deposit requested"],
-              ["depositAmount", "Deposit received amount"],
-              ["finalReceived", "Other / final payments received"],
-              ["otherCosts", "Other event expenses"],
-            ] as const
-          ).map(([key, label]) => (
+        <div className="finance-group">
+          <h3>Deposit</h3>
+          <div className="field-grid">
             <Field
-              key={key}
-              label={`${label} (AUD)`}
+              label="Deposit requested (AUD)"
               type="number"
               min={0}
-              value={draft.finance[key]}
+              value={draft.finance.depositRequired}
               onChange={(v) =>
                 change((e) => {
-                  e.finance[key] = Number(v);
+                  e.finance.depositRequired = Number(v);
                 })
               }
             />
-          ))}
-          <Field
-            label="Deposit received date"
-            type="date"
-            value={draft.finance.depositDate}
-            onChange={(v) =>
-              change((e) => {
-                e.finance.depositDate = v;
-              })
-            }
-          />
-          <Field
-            label="Final payment date"
-            type="date"
-            value={draft.finance.finalDate}
-            onChange={(v) =>
-              change((e) => {
-                e.finance.finalDate = v;
-              })
-            }
-          />
-          <Field
-            label="Invoice reference"
-            value={draft.finance.invoiceReference}
-            onChange={(v) =>
-              change((e) => {
-                e.finance.invoiceReference = v;
-              })
-            }
-          />
-        </div>
-        <div className="checks">
+            <Field
+              label="Deposit received amount (AUD)"
+              type="number"
+              min={0}
+              value={draft.finance.depositAmount}
+              onChange={(v) =>
+                change((e) => {
+                  e.finance.depositAmount = Number(v);
+                })
+              }
+            />
+            <Field
+              label="Deposit received date"
+              type="date"
+              value={draft.finance.depositDate}
+              onChange={(v) =>
+                change((e) => {
+                  e.finance.depositDate = v;
+                })
+              }
+            />
+          </div>
           <Check
             label="Deposit received — booking confirmed"
             checked={draft.finance.depositReceived}
@@ -845,6 +986,67 @@ export function EventEditor({ event }: { event: EventRecord }) {
               })
             }
           />
+        </div>
+        <div className="finance-group">
+          <h3>Client fees</h3>
+          <div className="field-grid">
+            {(
+              [
+                ["performance", "Performance fee"],
+                ["travel", "Travel fee"],
+                ["arrangements", "Arrangement fee"],
+                ["otherCharges", "Other client charges"],
+              ] as const
+            ).map(([key, label]) => (
+              <Field
+                key={key}
+                label={`${label} (AUD)`}
+                type="number"
+                min={0}
+                value={draft.finance[key]}
+                onChange={(v) =>
+                  change((e) => {
+                    e.finance[key] = Number(v);
+                  })
+                }
+              />
+            ))}
+          </div>
+        </div>
+        <div className="finance-group">
+          <h3>Balance & invoice</h3>
+          <div className="field-grid">
+            <Field
+              label="Other / final payments received (AUD)"
+              type="number"
+              min={0}
+              value={draft.finance.finalReceived}
+              onChange={(v) =>
+                change((e) => {
+                  e.finance.finalReceived = Number(v);
+                })
+              }
+            />
+            <Field
+              label="Final payment date"
+              type="date"
+              value={draft.finance.finalDate}
+              onChange={(v) =>
+                change((e) => {
+                  e.finance.finalDate = v;
+                })
+              }
+            />
+            <Field
+              label="Invoice reference"
+              value={draft.finance.invoiceReference}
+              onChange={(v) =>
+                change((e) => {
+                  e.finance.invoiceReference = v;
+                })
+              }
+            />
+          </div>
           <Check
             label="Final invoice sent"
             checked={draft.finance.invoiceSent}
@@ -854,6 +1056,22 @@ export function EventEditor({ event }: { event: EventRecord }) {
               })
             }
           />
+        </div>
+        <div className="finance-group">
+          <h3>Internal costs</h3>
+          <div className="field-grid">
+            <Field
+              label="Other event expenses (AUD)"
+              type="number"
+              min={0}
+              value={draft.finance.otherCosts}
+              onChange={(v) =>
+                change((e) => {
+                  e.finance.otherCosts = Number(v);
+                })
+              }
+            />
+          </div>
         </div>
         <p className="muted">
           Player fees are recorded in Musicians above. Record only payments

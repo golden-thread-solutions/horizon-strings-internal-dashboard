@@ -63,5 +63,24 @@ export function demoData(): Dataset {
     settings: { ...defaultSettings },
     musicians: [],
     pieces: [],
+    websiteEnquiries: [
+      {
+        id: crypto.randomUUID(),
+        createdAt: `${today}T01:00:00.000Z`,
+        name: "Taylor & Morgan — website enquiry",
+        email: "taylor@example.com",
+        phone: "0400000000",
+        preferredContact: "email",
+        eventDate: addDays(today, 180),
+        venue: "Sample venue",
+        area: "Coffs Harbour",
+        message: "We are planning our ceremony and would love a quartet.",
+        weddingPackage: "signature",
+        requestedEnsemble: "quartet",
+        emailStatus: "sent",
+        dashboardStatus: "new",
+        dashboardEventId: "",
+      },
+    ],
   };
 }

@@ -4,12 +4,12 @@ Golden Thread Solutions accounts. The dashboard has a separate Vercel project an
 
 ## Supabase
 
-The owner selected the existing **Horizon Strings** project `rqsdieaugozncjsmhcgd` (Sydney) on 18 September 2026. The dashboard uses separate `hs_` tables; the website tables were not changed. Do not create another project. Keep the database password in the owner's password manager; the app does not use it.
+The owner selected the existing **Horizon Strings** project `rqsdieaugozncjsmhcgd` (Sydney) on 18 September 2026. Dashboard-owned records use separate `hs_` tables. The integration migration adds conversion tracking and the submitted package/ensemble choices to `website_enquiries`; it does not expose that table publicly. Do not create another project. Keep the database password in the owner's password manager; the app does not use it.
 
 1. **Already applied:** `supabase/migrations/202609180001_dashboard_v1.sql` through SQL Editor on 18 September 2026. All 13 dashboard tables have RLS. This first-install transaction is not a reset/repeatable script; do not run it again. Never apply `supabase/legacy-reference` files.
-2. **Already configured:** public signup disabled, email/password sign-in enabled, anonymous sign-in disabled, email confirmation retained.
-3. Authentication → Users → Add user → Create user: create two confirmed password users. Use direct creation rather than invitations for initial setup, so no SMTP or outgoing invite is required. Owners enter/retain their own passwords; never paste passwords into a task or source file.
-4. Replace the two email placeholders in `supabase/configure-owners.sql` and run it. It verifies both confirmed accounts before granting access. Do not use browser-editable metadata for owner membership.
+2. **Next migration:** apply `supabase/migrations/202609230001_website_enquiry_inbox.sql` once. It preserves website enquiry records, gives authenticated owners read-only inbox access, adds idempotent event conversion, and stores structured event details and repertoire metadata.
+3. **Already configured:** public signup disabled, email/password sign-in enabled, anonymous sign-in disabled, email confirmation retained.
+4. **Already configured:** the confirmed `koby@horizonstrings.com.au` account has dashboard owner access. A second owner can be added later without changing the application.
 5. **Already configured:** the existing project URL and publishable key are in the Vercel Production/Preview environments and ignored local `.env.local`. No service-role/secret key, Storage bucket, Edge Function, cron, webhook, Resend or Google key is needed.
 
 Every business table has RLS. Removing a user from `hs_owners` revokes business access, including through the direct database API.

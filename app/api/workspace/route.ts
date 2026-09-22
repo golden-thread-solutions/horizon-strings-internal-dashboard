@@ -89,6 +89,10 @@ const mutationSchema = z.discriminatedUnion("operation", [
   z.object({ operation: z.literal("settings"), data: settingsSchema }),
   z.object({ operation: z.literal("musician"), data: musicianSchema }),
   z.object({ operation: z.literal("piece"), data: pieceSchema }),
+  z.object({
+    operation: z.literal("convertEnquiry"),
+    data: z.object({ id: z.uuid() }),
+  }),
 ]);
 export async function POST(req: NextRequest) {
   try {
@@ -161,6 +165,13 @@ export async function POST(req: NextRequest) {
       const { data: saved, error } = await db.rpc("hs_save_settings", {
         p_settings: data,
       });
+      return error ? databaseError(error) : reply(saved);
+    }
+    if (operation === "convertEnquiry") {
+      const { data: saved, error } = await db.rpc(
+        "hs_convert_website_enquiry",
+        { p_id: data.id },
+      );
       return error ? databaseError(error) : reply(saved);
     }
     const { data: saved, error } =

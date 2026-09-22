@@ -13,9 +13,11 @@ import { browserSupabase } from "@/lib/supabase";
 import { demoData } from "@/lib/demo";
 import {
   eventSchema,
+  newEvent,
   settingsSchema,
   musicianSchema,
   pieceSchema,
+  websiteEnquirySchema,
   type Dataset,
   type EventRecord,
   type Settings,
@@ -32,6 +34,7 @@ type WorkspaceValue = {
   saveSettings: (s: Settings) => Promise<void>;
   saveMusician: (m: Musician) => Promise<void>;
   savePiece: (p: Piece) => Promise<void>;
+  convertWebsiteEnquiry: (id: string) => Promise<EventRecord>;
 };
 const Context = createContext<WorkspaceValue | null>(null);
 const storageKey = "horizon-dashboard-demo-v1";
@@ -50,6 +53,9 @@ function validateData(value: Dataset): Dataset {
     settings: settingsSchema.parse(value.settings),
     musicians: value.musicians.map((m) => musicianSchema.parse(m)),
     pieces: value.pieces.map((p) => pieceSchema.parse(p)),
+    websiteEnquiries: (value.websiteEnquiries || []).map((e) =>
+      websiteEnquirySchema.parse(e),
+    ),
   };
 }
 export function useWorkspace() {
@@ -231,6 +237,63 @@ export function Workspace({
       setData((d) => (d ? { ...d, settings: saved } : d));
     }
   }
+  async function convertWebsiteEnquiry(id: string) {
+    let saved: EventRecord;
+    if (demo) {
+      const latest = validateData(
+        JSON.parse(localStorage.getItem(storageKey) || "null"),
+      );
+      const enquiry = latest.websiteEnquiries.find((e) => e.id === id);
+      if (!enquiry) throw new Error("Website enquiry not found.");
+      const existing = enquiry.dashboardEventId
+        ? latest.events.find((e) => e.id === enquiry.dashboardEventId)
+        : undefined;
+      saved = existing || {
+        ...newEvent(enquiry.name, enquiry.createdAt.slice(0, 10)),
+        id: crypto.randomUUID(),
+        eventDate: enquiry.eventDate,
+        area: enquiry.area,
+        address: enquiry.venue,
+        source: "Website enquiry",
+        notes: enquiry.message,
+        contacts: [
+          {
+            id: crypto.randomUUID(),
+            role: "Main contact",
+            name: enquiry.name,
+            email: enquiry.email,
+            phone: enquiry.phone,
+            notes: `Preferred reply: ${enquiry.preferredContact}`,
+          },
+        ],
+      };
+      if (!existing)
+        saved = {
+          ...saved,
+          revision: 1,
+          code: `DEMO-${String(latest.events.length + 1).padStart(3, "0")}`,
+        };
+      const next = {
+        ...latest,
+        events: existing ? latest.events : [saved, ...latest.events],
+        websiteEnquiries: latest.websiteEnquiries.map((e) =>
+          e.id === id
+            ? {
+                ...e,
+                dashboardStatus: "converted" as const,
+                dashboardEventId: saved.id,
+              }
+            : e,
+        ),
+      };
+      localStorage.setItem(storageKey, JSON.stringify(next));
+      setData(next);
+    } else {
+      saved = eventSchema.parse(await request("convertEnquiry", { id }));
+      await refresh();
+    }
+    return saved;
+  }
   async function saveCatalogue(
     kind: "musician" | "piece",
     item: Musician | Piece,
@@ -347,6 +410,7 @@ export function Workspace({
         saveSettings,
         saveMusician: (m) => saveCatalogue("musician", m),
         savePiece: (p) => saveCatalogue("piece", p),
+        convertWebsiteEnquiry,
       }}
     >
       <div className="shell">

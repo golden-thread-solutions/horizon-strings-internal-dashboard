@@ -277,6 +277,33 @@ p {
   border-top: 2px solid var(--accent);
   padding: 18px 20px;
 }
+.website-inbox {
+  border-top: 2px solid var(--accent);
+  background: #f4f7f4;
+  padding: 20px;
+  margin-bottom: 30px;
+}
+.website-inbox .section-heading {
+  margin-bottom: 12px;
+}
+.website-inbox h2 {
+  margin-top: 5px;
+}
+.website-enquiry-table {
+  min-width: 980px;
+}
+.website-enquiry-table td:last-child {
+  padding-right: 0;
+}
+.enquiry-message {
+  min-width: 210px;
+  max-width: 360px;
+  white-space: pre-wrap;
+}
+.sent {
+  color: var(--accent);
+  font-weight: 600;
+}
 .intake label {
   min-width: 260px;
   flex: 1;
@@ -422,13 +449,26 @@ tbody tr:hover {
   border-top: 1px solid var(--line);
   padding: 23px 0;
 }
-.resolution-row > div:first-child p {
+.resolution-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.resolution-heading .check {
+  margin: -3px 0 0;
+  white-space: nowrap;
+}
+.resolution-heading p {
   font-size: 12px;
   margin-top: 10px;
 }
-.resolution-row > div:last-child {
+.resolution-body {
   display: grid;
   gap: 12px;
+}
+.operational-fields {
+  margin-top: 4px;
 }
 .resolution-row select {
   max-width: 225px;
@@ -515,6 +555,13 @@ tbody tr:hover {
   font-weight: 500;
   color: var(--ink);
   margin-top: 6px;
+}
+.finance-group {
+  padding: 22px 0;
+  border-top: 1px solid var(--line);
+}
+.finance-group h3 {
+  margin-bottom: 18px;
 }
 .attention {
   color: var(--error);

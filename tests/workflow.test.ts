@@ -77,7 +77,7 @@ test("response, welcome and deposit derive canonical stages", () => {
     ),
   );
 });
-test("deferred information requires a date or trigger; filled requires a value", () => {
+test("deferred information requires a date or trigger; structured fields may satisfy filled details", () => {
   assert.equal(
     resolutionSchema.safeParse({
       state: "Deferred",
@@ -94,7 +94,7 @@ test("deferred information requires a date or trigger; filled requires a value",
       dueDate: "",
       trigger: "",
     }).success,
-    false,
+    true,
   );
   assert.equal(
     resolutionSchema.safeParse({

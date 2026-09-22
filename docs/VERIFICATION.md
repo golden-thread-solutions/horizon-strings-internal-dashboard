@@ -22,8 +22,15 @@ Live setup completed on 18 September 2026:
 
 Not verified yet: either owner sign-in, authenticated persistence/stale edits between two owners, or backup/restore. No Auth users or dashboard owner grants have been created, and no real customer data has been imported. These remaining dependencies are in the owner checklist.
 
-On 19 September 2026 the single confirmed Auth account `koby@horizonstrings.com.au` was verified in Supabase. The owner has not yet confirmed the security-sensitive `hs_owners` grant. Live `hs_settings` now records 12/12/8/8/4/4/2 weeks, thank-you after 3 days, no payment gate, and reviewed defaults. The next-Thursday review calculation has a regression test.
+On 19 September 2026 the single confirmed Auth account `koby@horizonstrings.com.au` and its `hs_owners` grant were verified in Supabase. Live `hs_settings` records 12/12/8/8/4/4/2 weeks, thank-you after 3 days, no payment gate, and reviewed defaults. The next-Thursday review calculation has a regression test.
 
 The external backup workflow is committed but not activated: it requires the six GitHub Actions secrets and a private R2 bucket, then a successful manual run and a documented test restore. No Supabase Storage files are used by dashboard V1.
 
 The local disk filled during package install/compiler caching. Unused npm cache and this dashboard's generated Next.js cache were reclaimed; persistent compiler caches were disabled. Source files, the website and original archived folders were preserved. Future local development will benefit from more free disk space; remote deployment is not dependent on that cleanup.
+
+## 23 September 2026 integration verification
+
+- TypeScript, the production webpack build and all 13 dashboard tests passed.
+- The database test applies both migrations to embedded Postgres and verifies owner-only website enquiry visibility, one-time/idempotent conversion, field mapping, structured ceremony persistence and outsider denial.
+- The public website enquiry tests, lint and production webpack build passed. Package and ensemble selections now reach storage and the existing owner notification email.
+- Browser checks confirmed the website inbox, conversion to an event, N/A detail collapse, structured ceremony and wet-weather fields, grouped finance layout, and Genre/Wedding suitable catalogue controls.
