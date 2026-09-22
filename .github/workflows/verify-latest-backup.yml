@@ -1,0 +1,65 @@
+name: Verify latest encrypted database backup
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+      R2_BUCKET: ${{ secrets.R2_BUCKET }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: auto
+      BACKUP_ENCRYPTION_KEY: ${{ secrets.BACKUP_ENCRYPTION_KEY }}
+    steps:
+      - name: Install verification tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends gnupg
+          docker pull postgres:17
+
+      - name: Download, decrypt and inspect the latest backup
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          for name in R2_ENDPOINT R2_BUCKET AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY BACKUP_ENCRYPTION_KEY; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "Missing required GitHub secret: $name" >&2
+              exit 1
+            fi
+          done
+
+          object="$(aws s3api list-objects-v2 --bucket "$R2_BUCKET" --prefix production/database/ --endpoint-url "$R2_ENDPOINT" --query 'Contents[].Key' --output text | tr '\t' '\n' | grep -E '\.tar\.gz\.gpg$' | sort | tail -n 1)"
+          if [[ -z "$object" ]]; then
+            echo "No encrypted database backup was found in R2" >&2
+            exit 1
+          fi
+
+          run_dir="$(mktemp -d)"
+          trap 'rm -rf "$run_dir"' EXIT
+          archive_name="$(basename "$object")"
+          aws s3 cp "s3://$R2_BUCKET/$object" "$run_dir/$archive_name" --endpoint-url "$R2_ENDPOINT" --only-show-errors
+          aws s3 cp "s3://$R2_BUCKET/$object.sha256" "$run_dir/$archive_name.sha256" --endpoint-url "$R2_ENDPOINT" --only-show-errors
+
+          (
+            cd "$run_dir"
+            sha256sum --check "$archive_name.sha256"
+          )
+          printf '%s' "$BACKUP_ENCRYPTION_KEY" > "$run_dir/passphrase"
+          gpg --batch --yes --pinentry-mode loopback --passphrase-file "$run_dir/passphrase" \
+            --output "$run_dir/backup.tar.gz" --decrypt "$run_dir/$archive_name"
+          mkdir "$run_dir/extracted"
+          tar -C "$run_dir/extracted" -xzf "$run_dir/backup.tar.gz"
+          test -s "$run_dir/extracted/production.dump"
+          test -s "$run_dir/extracted/roles.sql"
+          test -s "$run_dir/extracted/metadata.json"
+          docker run --rm --volume "$run_dir:/backup" postgres:17 \
+            sh -c 'pg_restore --list /backup/extracted/production.dump > /dev/null'
+          echo "Verified encrypted R2 backup: $object"

@@ -35,3 +35,5 @@ Do not put these values in the repository, Vercel, the dashboard environment, is
 5. Run the dashboard migration verification and the live smoke checks against the restored project. Confirm functions, triggers, RLS, relationships and sample records before changing Vercel's Supabase URL/key.
 
 The first restore must be performed manually into a separate test database and recorded. Repeat a restore test at least monthly. A successful upload alone is not evidence that recovery works.
+
+For a one-off, non-destructive check before a full restore is practical, run the **Verify latest encrypted database backup** workflow manually. It downloads the newest archive from R2, checks its checksum, decrypts it only in the temporary GitHub runner, and validates the contained PostgreSQL dump without connecting to or changing any database. It is not scheduled.
