@@ -22,19 +22,20 @@ Core requirements: date, ensemble, duration, separate area/address, main contact
 
 Home is pending tasks and outbound communications, sorted by due date. No AI priorities or cron are necessary: the queue is computed from current records, and the open home page updates the Sydney date each minute. Manual dates stay unchanged when settings change.
 
-## Defaults — editable in Settings, awaiting one owner review
+## Workflow defaults
 
-| Rule | Default |
-| --- | --- |
-| Internal Organisation / musicians | 12 weeks before event |
-| Repertoire | 6 weeks before |
-| Arrangements | 4 weeks before |
-| Rehearsals | 3 weeks before |
-| Final Details | 2 weeks before |
-| Final confirmation / client balance | 1 week before |
-| Enquiry / booking follow-up | 1 day after enquiry/response |
-| Deposit check | 7 days after welcome/deposit email |
-| Post-event payments / thanks / review | 7 days after event |
+| Rule                                  | Default                            |
+| ------------------------------------- | ---------------------------------- |
+| Internal Organisation / musicians     | 12 weeks before event              |
+| Repertoire                            | 8 weeks before                     |
+| Arrangements                          | 8 weeks before                     |
+| Rehearsals                            | 4 weeks before                     |
+| Final Details                         | 4 weeks before                     |
+| Final pre-event check                 | 2 weeks before                     |
+| Enquiry / booking follow-up           | 1 day after enquiry/response       |
+| Deposit check                         | 7 days after welcome/deposit email |
+| Thank-you message                     | 3 days after event                 |
+| Review request                        | Next Thursday after thank-you      |
 
 Weeks are seven calendar days. Day offsets include weekends; no evening cutoff is embedded.
 
@@ -48,4 +49,6 @@ Booked events archive only after the date and once all generated/manual actions 
 
 Pending Communications means outbound work Horizon owes. Send through normal email/phone, then record the fact. Mail links open email; the application sends nothing automatically. A manual task does not implicitly set a booking milestone.
 
-Total fee = performance + travel + arrangements + other charges. Received = accepted deposit + other/final payments. Balance floors at zero; credits remain visible. Estimated profit subtracts all player fees and other costs. No invoice generator, bank or tax integration is included.
+The deposit is fixed at $400. Total fee = performance + travel + arrangements + other charges. The final invoice amount = total fee - $400. Received = the $400 deposit once marked received + other/final payments. Balance floors at zero; credits remain visible. Estimated profit subtracts all player fees and other costs. No invoice generator, bank or tax integration is included.
+
+For ceremony timing, playing start = ceremony start - pre-ceremony music. Arrival = playing start - 30 minutes. Remaining playing time = total playing duration - pre-ceremony music - ceremony duration. These three results are calculated and read-only.

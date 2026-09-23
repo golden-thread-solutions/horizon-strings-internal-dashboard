@@ -1,5 +1,5 @@
 "use client";
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 export function Field({
   label,
   value,
@@ -9,6 +9,10 @@ export function Field({
   max,
   required = false,
   hint,
+  readOnly = false,
+  suggestions,
+  step,
+  showZero = false,
 }: {
   label: string;
   value: string | number;
@@ -18,22 +22,38 @@ export function Field({
   max?: number;
   required?: boolean;
   hint?: string;
+  readOnly?: boolean;
+  suggestions?: readonly (string | number)[];
+  step?: number | string;
+  showZero?: boolean;
 }) {
+  const suggestionId = useId();
+  const displayValue =
+    type === "number" && value === 0 && !showZero ? "" : value;
   return (
     <label>
       {label}
       <input
         type={type}
-        value={value}
+        value={displayValue}
         min={min}
         max={max}
-        step={type === "number" ? "any" : undefined}
+        step={step ?? (type === "number" ? "any" : undefined)}
         required={required}
+        readOnly={readOnly}
+        list={suggestions?.length ? suggestionId : undefined}
         onInput={
           type === "date" ? (e) => onChange(e.currentTarget.value) : undefined
         }
         onChange={(e) => onChange(e.target.value)}
       />
+      {suggestions?.length ? (
+        <datalist id={suggestionId}>
+          {suggestions.map((suggestion) => (
+            <option value={suggestion} key={suggestion} />
+          ))}
+        </datalist>
+      ) : null}
       {hint && <small className="muted">{hint}</small>}
     </label>
   );

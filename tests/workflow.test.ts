@@ -17,8 +17,12 @@ import {
   balance,
   profit,
   readiness,
+  received,
   weeksBefore,
   nextThursday,
+  ceremonyTiming,
+  DEFAULT_DEPOSIT_AMOUNT,
+  finalInvoiceAmount,
 } from "../lib/workflow";
 const today = "2026-09-18";
 function booked(days = 60) {
@@ -194,7 +198,7 @@ test("Event Ready requires full ensemble, music access, final confirmation and s
   e.ensemble = "Duo";
   assert.notEqual(deriveStage(e, defaultSettings, today), "Event Ready");
   e.ensemble = "Solo";
-  e.finance.performance = 200;
+  e.finance.performance = 500;
   assert.equal(deriveStage(e, defaultSettings, today), "Event Ready");
   assert.equal(
     deriveStage(e, { ...defaultSettings, readyRequiresPayment: true }, today),
@@ -254,6 +258,35 @@ test("finance includes fees, received final payments and musician costs", () => 
   assert.equal(profit(e), 1420);
   e.finance.finalReceived = 2000;
   assert.equal(balance(e), 0);
+});
+test("ceremony timing follows the spreadsheet calculations", () => {
+  assert.deepEqual(ceremonyTiming("15:00", 20, 30, 75), {
+    playStartTime: "14:40",
+    arrivalTime: "14:10",
+    remainingPlayMinutes: 25,
+  });
+  assert.deepEqual(ceremonyTiming("00:15", 30, 30, 60), {
+    playStartTime: "23:45",
+    arrivalTime: "23:15",
+    remainingPlayMinutes: 0,
+  });
+  assert.deepEqual(ceremonyTiming("", undefined, undefined, 75), {
+    playStartTime: "",
+    arrivalTime: "",
+    remainingPlayMinutes: 0,
+  });
+});
+test("deposit and final invoice use the fixed four-hundred-dollar deposit", () => {
+  const e = booked();
+  e.finance.performance = 1500;
+  e.finance.travel = 100;
+  e.finance.depositAmount = 50;
+  assert.equal(DEFAULT_DEPOSIT_AMOUNT, 400);
+  assert.equal(finalInvoiceAmount(e), 1200);
+  assert.equal(received(e), 400);
+  const fresh = newEvent("New enquiry", today);
+  assert.equal(fresh.finance.depositRequired, 400);
+  assert.equal(fresh.finance.depositAmount, 400);
 });
 test("Sydney calendar day and DST-safe offsets", () => {
   assert.equal(businessToday(new Date("2026-09-17T15:00:00Z")), "2026-09-18");

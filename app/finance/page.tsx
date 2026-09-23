@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useWorkspace } from "@/components/Workspace";
 import {
   balance,
+  DEFAULT_DEPOSIT_AMOUNT,
   formatDate,
   money,
   profit,
@@ -64,7 +65,7 @@ export default function Page() {
                 <td>{money(totalFee(e))}</td>
                 <td>
                   {e.finance.depositReceived
-                    ? money(e.finance.depositAmount)
+                    ? money(DEFAULT_DEPOSIT_AMOUNT)
                     : "Not received"}
                 </td>
                 <td className={balance(e) > 0 ? "attention" : ""}>

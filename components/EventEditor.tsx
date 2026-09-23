@@ -13,9 +13,12 @@ import {
   balance,
   businessToday,
   canArchive,
+  ceremonyTiming,
+  DEFAULT_DEPOSIT_AMOUNT,
   deferredDate,
   deriveStage,
   eventActions,
+  finalInvoiceAmount,
   formatDate,
   missingDetails,
   money,
@@ -57,35 +60,85 @@ type OperationalField = {
   label: string;
   type?: "text" | "number" | "date" | "time";
   multiline?: boolean;
+  calculated?: boolean;
+  suggestions?: readonly (string | number)[];
 };
+const timeSuggestions = Array.from({ length: 96 }, (_, index) => {
+  const minutes = index * 15;
+  return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+});
+const shortDurationSuggestions = Array.from(
+  { length: 8 },
+  (_, index) => (index + 1) * 15,
+);
+const playingDurationSuggestions = Array.from(
+  { length: 17 },
+  (_, index) => 60 + index * 15,
+);
+const feeSuggestions = Array.from(
+  { length: 50 },
+  (_, index) => (index + 1) * 100,
+);
+const performanceFeeSuggestions = Array.from(
+  { length: 46 },
+  (_, index) => 500 + index * 100,
+);
 const operationalFields: Record<keyof typeof detailLabels, OperationalField[]> =
   {
     timing: [
-      { key: "arrivalTime", label: "Arrival time", type: "time" },
-      { key: "playStartTime", label: "Playing starts", type: "time" },
+      {
+        key: "arrivalTime",
+        label: "Arrival time",
+        type: "time",
+        calculated: true,
+      },
+      {
+        key: "playStartTime",
+        label: "Playing starts",
+        type: "time",
+        calculated: true,
+      },
       {
         key: "preCeremonyMinutes",
         label: "Pre-ceremony music (minutes)",
         type: "number",
+        suggestions: shortDurationSuggestions,
       },
-      { key: "ceremonyStartTime", label: "Ceremony starts", type: "time" },
+      {
+        key: "ceremonyStartTime",
+        label: "Ceremony starts",
+        type: "time",
+        suggestions: timeSuggestions,
+      },
       {
         key: "ceremonyDurationMinutes",
         label: "Ceremony duration (minutes)",
         type: "number",
+        suggestions: shortDurationSuggestions,
       },
       {
         key: "remainingPlayMinutes",
         label: "Remaining playing time (minutes)",
         type: "number",
+        calculated: true,
       },
       {
         key: "postCeremonyDetails",
         label: "Post-ceremony timing and details",
         multiline: true,
       },
-      { key: "otherStartTime", label: "Other playing starts", type: "time" },
-      { key: "otherFinishTime", label: "Other playing finishes", type: "time" },
+      {
+        key: "otherStartTime",
+        label: "Other playing starts",
+        type: "time",
+        suggestions: timeSuggestions,
+      },
+      {
+        key: "otherFinishTime",
+        label: "Other playing finishes",
+        type: "time",
+        suggestions: timeSuggestions,
+      },
     ],
     venueSetup: [
       { key: "insideOutside", label: "Inside / outside" },
@@ -158,9 +211,33 @@ function hasOperationalInfo(values: Record<string, string | number>) {
     typeof value === "number" ? value > 0 : value.trim().length > 0,
   );
 }
+function numericTiming(value: string | number | undefined) {
+  if (value === undefined || value === "") return undefined;
+  const number = Number(value);
+  return Number.isFinite(number) && number >= 0 ? number : undefined;
+}
+function applyCalculatedFields(event: EventRecord) {
+  event.finance.depositRequired = DEFAULT_DEPOSIT_AMOUNT;
+  event.finance.depositAmount = DEFAULT_DEPOSIT_AMOUNT;
+  const timing = event.operational.timing;
+  const calculated = ceremonyTiming(
+    String(timing.ceremonyStartTime ?? ""),
+    numericTiming(timing.preCeremonyMinutes),
+    numericTiming(timing.ceremonyDurationMinutes),
+    event.durationMinutes,
+  );
+  timing.playStartTime = calculated.playStartTime;
+  timing.arrivalTime = calculated.arrivalTime;
+  timing.remainingPlayMinutes = calculated.remainingPlayMinutes;
+}
+function calculatedEvent(event: EventRecord) {
+  const copy = structuredClone(event);
+  applyCalculatedFields(copy);
+  return copy;
+}
 export function EventEditor({ event }: { event: EventRecord }) {
   const { data, saveEvent, refresh } = useWorkspace();
-  const [draft, setDraft] = useState(() => structuredClone(event));
+  const [draft, setDraft] = useState(() => calculatedEvent(event));
   const [saved, setSaved] = useState(() => JSON.stringify(event));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -172,6 +249,7 @@ export function EventEditor({ event }: { event: EventRecord }) {
     setDraft((current) => {
       const copy = structuredClone(current);
       fn(copy);
+      applyCalculatedFields(copy);
       return copy;
     });
     setNotice("");
@@ -383,9 +461,10 @@ export function EventEditor({ event }: { event: EventRecord }) {
           <Field
             label="Playing duration (minutes)"
             type="number"
-            min={0}
+            min={60}
             max={1440}
             value={draft.durationMinutes}
+            suggestions={playingDurationSuggestions}
             onChange={(v) =>
               change((e) => {
                 e.durationMinutes = Number(v);
@@ -613,6 +692,19 @@ export function EventEditor({ event }: { event: EventRecord }) {
                         type={field.type}
                         min={field.type === "number" ? 0 : undefined}
                         value={current}
+                        readOnly={field.calculated}
+                        showZero={field.calculated}
+                        suggestions={field.suggestions}
+                        step={field.type === "time" ? 900 : undefined}
+                        hint={
+                          field.calculated
+                            ? field.key === "arrivalTime"
+                              ? "Calculated as 30 minutes before playing starts."
+                              : field.key === "playStartTime"
+                                ? "Calculated from ceremony start minus pre-ceremony music."
+                                : "Calculated from playing duration minus pre-ceremony music and ceremony duration."
+                            : undefined
+                        }
                         onChange={update}
                       />
                     );
@@ -759,6 +851,7 @@ export function EventEditor({ event }: { event: EventRecord }) {
                 type="number"
                 min={0}
                 value={m.fee}
+                suggestions={feeSuggestions}
                 onChange={(v) =>
                   change((e) => {
                     e.musicians[i].fee = Number(v);
@@ -939,31 +1032,30 @@ export function EventEditor({ event }: { event: EventRecord }) {
           <span>
             Estimated profit <strong>{money(profit(draft))}</strong>
           </span>
+          <span>
+            Final invoice <strong>{money(finalInvoiceAmount(draft))}</strong>
+          </span>
         </div>
         <div className="finance-group">
           <h3>Deposit</h3>
           <div className="field-grid">
             <Field
-              label="Deposit requested (AUD)"
+              label="Deposit requested — fixed (AUD)"
               type="number"
               min={0}
               value={draft.finance.depositRequired}
-              onChange={(v) =>
-                change((e) => {
-                  e.finance.depositRequired = Number(v);
-                })
-              }
+              readOnly
+              showZero
+              onChange={() => undefined}
             />
             <Field
-              label="Deposit received amount (AUD)"
+              label="Deposit received amount — fixed (AUD)"
               type="number"
               min={0}
               value={draft.finance.depositAmount}
-              onChange={(v) =>
-                change((e) => {
-                  e.finance.depositAmount = Number(v);
-                })
-              }
+              readOnly
+              showZero
+              onChange={() => undefined}
             />
             <Field
               label="Deposit received date"
@@ -982,6 +1074,7 @@ export function EventEditor({ event }: { event: EventRecord }) {
             onChange={(v) =>
               change((e) => {
                 e.finance.depositReceived = v;
+                e.finance.depositAmount = DEFAULT_DEPOSIT_AMOUNT;
                 if (v && !e.finance.depositDate) e.finance.depositDate = today;
               })
             }
@@ -1004,6 +1097,11 @@ export function EventEditor({ event }: { event: EventRecord }) {
                 type="number"
                 min={0}
                 value={draft.finance[key]}
+                suggestions={
+                  key === "performance"
+                    ? performanceFeeSuggestions
+                    : feeSuggestions
+                }
                 onChange={(v) =>
                   change((e) => {
                     e.finance[key] = Number(v);
@@ -1021,6 +1119,7 @@ export function EventEditor({ event }: { event: EventRecord }) {
               type="number"
               min={0}
               value={draft.finance.finalReceived}
+              suggestions={feeSuggestions}
               onChange={(v) =>
                 change((e) => {
                   e.finance.finalReceived = Number(v);
@@ -1065,6 +1164,7 @@ export function EventEditor({ event }: { event: EventRecord }) {
               type="number"
               min={0}
               value={draft.finance.otherCosts}
+              suggestions={feeSuggestions}
               onChange={(v) =>
                 change((e) => {
                   e.finance.otherCosts = Number(v);

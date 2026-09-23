@@ -6,6 +6,49 @@ import {
   type DetailKey,
 } from "./model";
 
+export const DEFAULT_DEPOSIT_AMOUNT = 400;
+
+export function subtractMinutes(time: string, minutes: number) {
+  const match = /^(\d{2}):(\d{2})$/.exec(time);
+  if (!match || !Number.isFinite(minutes) || minutes < 0) return "";
+  if (Number(match[1]) > 23 || Number(match[2]) > 59) return "";
+  const total = Number(match[1]) * 60 + Number(match[2]) - minutes;
+  const wrapped = ((total % 1440) + 1440) % 1440;
+  return `${String(Math.floor(wrapped / 60)).padStart(2, "0")}:${String(wrapped % 60).padStart(2, "0")}`;
+}
+
+export function ceremonyTiming(
+  ceremonyStartTime: string,
+  preCeremonyMinutes: number | undefined,
+  ceremonyDurationMinutes: number | undefined,
+  playingDurationMinutes: number,
+) {
+  const hasPreCeremony =
+    preCeremonyMinutes !== undefined &&
+    Number.isFinite(preCeremonyMinutes) &&
+    preCeremonyMinutes >= 0;
+  const hasCeremonyDuration =
+    ceremonyDurationMinutes !== undefined &&
+    Number.isFinite(ceremonyDurationMinutes) &&
+    ceremonyDurationMinutes >= 0;
+  const playStartTime = hasPreCeremony
+    ? subtractMinutes(ceremonyStartTime, preCeremonyMinutes!)
+    : "";
+  return {
+    playStartTime,
+    arrivalTime: playStartTime ? subtractMinutes(playStartTime, 30) : "",
+    remainingPlayMinutes:
+      playingDurationMinutes > 0 && hasPreCeremony && hasCeremonyDuration
+        ? Math.max(
+            0,
+            playingDurationMinutes -
+              preCeremonyMinutes! -
+              ceremonyDurationMinutes!,
+          )
+        : 0,
+  };
+}
+
 export function businessToday(now = new Date()) {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: "Australia/Sydney",
@@ -44,8 +87,10 @@ export const totalFee = (e: EventRecord) =>
   e.finance.travel +
   e.finance.arrangements +
   e.finance.otherCharges;
+export const finalInvoiceAmount = (e: EventRecord) =>
+  Math.max(0, totalFee(e) - DEFAULT_DEPOSIT_AMOUNT);
 export const received = (e: EventRecord) =>
-  (e.finance.depositReceived ? e.finance.depositAmount : 0) +
+  (e.finance.depositReceived ? DEFAULT_DEPOSIT_AMOUNT : 0) +
   e.finance.finalReceived;
 export const balance = (e: EventRecord) =>
   Math.max(0, Math.round((totalFee(e) - received(e)) * 100) / 100);

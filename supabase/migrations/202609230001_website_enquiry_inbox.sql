@@ -168,7 +168,7 @@ begin
     'repertoire', '[]'::jsonb,
     'finance', jsonb_build_object(
       'performance',0,'travel',0,'arrangements',0,'otherCharges',0,
-      'depositRequired',0,'depositReceived',false,'depositAmount',0,
+      'depositRequired',400,'depositReceived',false,'depositAmount',400,
       'depositDate','','finalReceived',0,'finalDate','',
       'invoiceReference','','invoiceSent',false,'otherCosts',0
     ),
