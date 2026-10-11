@@ -73,7 +73,7 @@ export async function GET(req: NextRequest) {
   try {
     const auth = await authorised(req);
     if (auth.error) return auth.error;
-    const { data, error } = await auth.db!.rpc("hs_load_workspace");
+    const { data, error } = await auth.db!.rpc("hs_sync_and_load_workspace");
     if (error) return databaseError(error);
     if (!data) return reply({ error: "Owner access is required" }, 403);
     return reply(data);

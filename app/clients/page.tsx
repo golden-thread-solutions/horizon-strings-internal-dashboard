@@ -75,10 +75,14 @@ export default function Page() {
           <div>
             <span className="eyebrow">FROM THE PUBLIC WEBSITE</span>
             <h2 id="website-enquiries">Website enquiries</h2>
+            <p>
+              New submissions are added to the event register when you open or
+              reload the dashboard. Earlier enquiries can be added below.
+            </p>
           </div>
           <span>
             {websiteEnquiries.filter((e) => e.dashboardStatus === "new").length}{" "}
-            new
+            awaiting manual review
           </span>
         </div>
         {websiteEnquiries.length ? (
@@ -165,7 +169,7 @@ export default function Page() {
                         >
                           {converting === enquiry.id
                             ? "Creating…"
-                            : "Create event"}
+                            : "Add earlier enquiry"}
                         </button>
                       )}
                     </td>
@@ -176,7 +180,8 @@ export default function Page() {
           </div>
         ) : (
           <p className="empty">
-            New website enquiries will appear here automatically.
+            New website enquiries will be added automatically when you open or
+            reload the dashboard.
           </p>
         )}
       </section>
