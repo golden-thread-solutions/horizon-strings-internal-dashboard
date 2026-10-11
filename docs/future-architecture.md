@@ -1,6 +1,6 @@
 # Deferred work
 
-- Website enquiry routing after the separate website review and an agreed mapping.
+- Background website enquiry conversion while the dashboard is closed, if needed; automatic conversion on owner dashboard load is implemented.
 - Audited import of selected spreadsheet records, only with explicit approval; never store customer records in source/seed files.
 - Direct email, Calendar, invoicing, accounting and payments after the core model is proven.
 - Granular typed time fields, payment ledger and detailed rehearsal scheduling if usage needs them.
