@@ -51,4 +51,12 @@ unknown event date/ensemble, and atomic rollback/retry on conversion failure.
 parent-directory dependencies in this isolated checkout; webpack used the same
 installed dependency versions successfully. This is a local checkout limitation;
 the deployed build must still be checked with its own installed dependencies.
-Live activation and authenticated production smoke checks remain pending.
+GitHub checks also passed the default production build with locally installed dependencies.
+
+## Live activation (11 October 2026)
+
+The owner approved activation. The website choices migration, pending dashboard inbox migration and automatic sync migration were applied as one transaction. Preflight and postflight confirmed all 10 existing events and 3 website submissions were preserved, all dashboard tables retained RLS, and anonymous website enquiry access remained denied.
+
+PR #5 was merged at `2807d01deb1922dea1cb9e26339618d4c64005d7`; Vercel reported successful production deployment. A rollback-only synthetic live SQL test exercised the actual submission function, owner sync, package/ensemble/contact mapping, repeat conversion, preserved owner edits and non-owner/anonymous denial. All test records and rate-limit writes rolled back; no notification email was sent. The signed-in production UI loaded the website inbox and earlier submissions successfully. Public database and deployed GET/POST denial checks, disabled signup and frame protection passed.
+
+Earlier submissions were left for manual review. No live customer event content was modified or imported during activation. The external backup workflow's latest checked run succeeded; recovery was not tested.

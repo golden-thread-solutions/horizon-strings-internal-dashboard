@@ -1,5 +1,7 @@
 # External production database backups
 
+Status verified 11 October 2026: the workflow is active. Latest checked run [38116042265](https://github.com/golden-thread-solutions/horizon-strings-internal-dashboard/actions/runs/38116042265) completed successfully. This confirms a successful backup workflow run, not a tested restoration.
+
 The production database is backed up independently of Supabase through GitHub Actions to a private Cloudflare R2 bucket. The workflow runs at 17 minutes past every sixth hour and can also be started with **Actions → External database backup → Run workflow**.
 
 Each run uses PostgreSQL-native tools against the production connection string:
@@ -22,7 +24,7 @@ Required GitHub Actions secrets for the dashboard repository:
 | `R2_SECRET_ACCESS_KEY`  | Matching R2 secret key                                                           |
 | `BACKUP_ENCRYPTION_KEY` | Long random passphrase kept in the owner's password manager and GitHub Secret    |
 
-The repository workflow is present but does not run successfully until these values and the private bucket exist. It never writes backup files to the repository. Production and development/test must use different connection strings and bucket prefixes; only the production workflow is included in V1.
+The workflow and required private configuration are active as of the verified run above. It never writes backup files to the repository. Production and development/test must use different connection strings and bucket prefixes; only the production workflow is included in V1.
 
 Do not put these values in the repository, Vercel, the dashboard environment, issues or workflow logs. The application does not use Supabase Storage for contracts, invoices, uploads or other business files in V1, so this workflow covers the current database only. If Storage files are added later, create a separate object-backup workflow under a different R2 prefix.
 

@@ -34,3 +34,12 @@ The local disk filled during package install/compiler caching. Unused npm cache 
 - The database test applies both migrations to embedded Postgres and verifies owner-only website enquiry visibility, one-time/idempotent conversion, field mapping, structured ceremony persistence and outsider denial.
 - The public website enquiry tests, lint and production webpack build passed. Package and ensemble selections now reach storage and the existing owner notification email.
 - Browser checks confirmed the website inbox, conversion to an event, N/A detail collapse, structured ceremony and wet-weather fields, grouped finance layout, and Genre/Wedding suitable catalogue controls.
+
+## Website connection activation — 11 October 2026
+
+- GitHub PR #5 checks passed all 16 tests and the standard production build. Merge `2807d01deb1922dea1cb9e26339618d4c64005d7` deployed successfully in Vercel.
+- Applied website choices, dashboard inbox and automatic sync migrations in one transaction. Existing counts remained 10 events and 3 submissions. Dashboard RLS and anonymous website enquiry denial were preserved.
+- Rollback-only live synthetic verification exercised the actual website submission function, owner conversion, mapping, repeated conversion, owner edits and non-owner/anonymous denial. All test writes rolled back; no email was sent.
+- Signed-in production Events & enquiries UI loaded the new website inbox successfully. This verifies the real owner API/load flow in addition to the owner-context SQL test.
+- All six read-only access checks passed: anonymous database reads/RPC and deployed GET/POST denied; signup disabled with email sign-in enabled; page available with frame protection.
+- Latest checked external backup run `38116042265` succeeded. Restoration was not verified here. Earlier website submissions were left for manual conversion.
