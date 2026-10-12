@@ -35,7 +35,7 @@ The local disk filled during package install/compiler caching. Unused npm cache 
 - The public website enquiry tests, lint and production webpack build passed. Package and ensemble selections now reach storage and the existing owner notification email.
 - Browser checks confirmed the website inbox, conversion to an event, N/A detail collapse, structured ceremony and wet-weather fields, grouped finance layout, and Genre/Wedding suitable catalogue controls.
 
-## Website connection activation — 11 October 2026
+## Website connection activation — 12 October 2026
 
 - GitHub PR #5 checks passed all 16 tests and the standard production build. Merge `2807d01deb1922dea1cb9e26339618d4c64005d7` deployed successfully in Vercel.
 - Applied website choices, dashboard inbox and automatic sync migrations in one transaction. Existing counts remained 10 events and 3 submissions. Dashboard RLS and anonymous website enquiry denial were preserved.

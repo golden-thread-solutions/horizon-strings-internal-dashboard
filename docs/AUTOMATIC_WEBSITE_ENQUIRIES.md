@@ -53,7 +53,7 @@ installed dependency versions successfully. This is a local checkout limitation;
 the deployed build must still be checked with its own installed dependencies.
 GitHub checks also passed the default production build with locally installed dependencies.
 
-## Live activation (11 October 2026)
+## Live activation (12 October 2026)
 
 The owner approved activation. The website choices migration, pending dashboard inbox migration and automatic sync migration were applied as one transaction. Preflight and postflight confirmed all 10 existing events and 3 website submissions were preserved, all dashboard tables retained RLS, and anonymous website enquiry access remained denied.
 

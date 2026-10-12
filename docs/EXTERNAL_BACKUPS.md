@@ -1,6 +1,6 @@
 # External production database backups
 
-Status verified 11 October 2026: the workflow is active. Latest checked run [38116042265](https://github.com/golden-thread-solutions/horizon-strings-internal-dashboard/actions/runs/38116042265) completed successfully. This confirms a successful backup workflow run, not a tested restoration.
+Status verified 12 October 2026: the workflow is active. Latest checked run [38116042265](https://github.com/golden-thread-solutions/horizon-strings-internal-dashboard/actions/runs/38116042265) completed successfully. This confirms a successful backup workflow run, not a tested restoration.
 
 The production database is backed up independently of Supabase through GitHub Actions to a private Cloudflare R2 bucket. The workflow runs at 17 minutes past every sixth hour and can also be started with **Actions → External database backup → Run workflow**.
 
