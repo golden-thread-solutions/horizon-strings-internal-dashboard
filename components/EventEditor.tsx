@@ -13,7 +13,7 @@ import {
   balance,
   businessToday,
   canArchive,
-  ceremonyTiming,
+  timingCalculation,
   DEFAULT_DEPOSIT_AMOUNT,
   deferredDate,
   deriveStage,
@@ -30,6 +30,17 @@ import {
   weeksBefore,
 } from "@/lib/workflow";
 import { ActionTable } from "./ActionQueue";
+import {
+  operationalFields,
+  playingDurationSuggestions,
+  feeSuggestions,
+  performanceFeeSuggestions,
+  fieldNotApplicable,
+  setFieldNotApplicable,
+  hasOperationalInfo,
+  detailState,
+  syncDetailState,
+} from "@/lib/event-details";
 
 const milestoneLabels: Record<keyof EventRecord["milestones"], string> = {
   responded: "Enquiry response sent",
@@ -55,180 +66,10 @@ const detailsHints: Record<keyof typeof detailLabels, string> = {
   runSheet:
     "Confirmed sequence and timing of the day. Defer to Final Details if appropriate.",
 };
-type OperationalField = {
-  key: string;
-  label: string;
-  type?: "text" | "number" | "date" | "time";
-  multiline?: boolean;
-  calculated?: boolean;
-  suggestions?: readonly (string | number)[];
-};
-const timeSuggestions = Array.from({ length: 96 }, (_, index) => {
-  const minutes = index * 15;
-  return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
-});
-const shortDurationSuggestions = Array.from(
-  { length: 8 },
-  (_, index) => (index + 1) * 15,
-);
-const playingDurationSuggestions = Array.from(
-  { length: 17 },
-  (_, index) => 60 + index * 15,
-);
-const feeSuggestions = Array.from(
-  { length: 50 },
-  (_, index) => (index + 1) * 100,
-);
-const performanceFeeSuggestions = Array.from(
-  { length: 46 },
-  (_, index) => 500 + index * 100,
-);
-const operationalFields: Record<keyof typeof detailLabels, OperationalField[]> =
-  {
-    timing: [
-      {
-        key: "arrivalTime",
-        label: "Arrival time",
-        type: "time",
-        calculated: true,
-      },
-      {
-        key: "playStartTime",
-        label: "Playing starts",
-        type: "time",
-        calculated: true,
-      },
-      {
-        key: "preCeremonyMinutes",
-        label: "Pre-ceremony music (minutes)",
-        type: "number",
-        suggestions: shortDurationSuggestions,
-      },
-      {
-        key: "ceremonyStartTime",
-        label: "Ceremony starts",
-        type: "time",
-        suggestions: timeSuggestions,
-      },
-      {
-        key: "ceremonyDurationMinutes",
-        label: "Ceremony duration (minutes)",
-        type: "number",
-        suggestions: shortDurationSuggestions,
-      },
-      {
-        key: "remainingPlayMinutes",
-        label: "Remaining playing time (minutes)",
-        type: "number",
-        calculated: true,
-      },
-      {
-        key: "postCeremonyDetails",
-        label: "Post-ceremony timing and details",
-        multiline: true,
-      },
-      {
-        key: "otherStartTime",
-        label: "Other playing starts",
-        type: "time",
-        suggestions: timeSuggestions,
-      },
-      {
-        key: "otherFinishTime",
-        label: "Other playing finishes",
-        type: "time",
-        suggestions: timeSuggestions,
-      },
-    ],
-    venueSetup: [
-      { key: "insideOutside", label: "Inside / outside" },
-      {
-        key: "playingPosition",
-        label: "Playing position at venue",
-        multiline: true,
-      },
-      { key: "arrivalAddress", label: "Arrival / setup address" },
-      { key: "secondLocation", label: "Second location or venue" },
-      { key: "secondAddress", label: "Second address" },
-      {
-        key: "movementDetails",
-        label: "Movement and setup notes",
-        multiline: true,
-      },
-    ],
-    wetWeather: [
-      { key: "plan", label: "Wet-weather plan", multiline: true },
-      { key: "alternativeArea", label: "Alternative area / room" },
-      { key: "alternativeAddress", label: "Alternative address" },
-      { key: "rainCallTime", label: "Rain decision time", type: "time" },
-      { key: "decisionMaker", label: "Who makes the weather call" },
-      {
-        key: "shelterDetails",
-        label: "Shelter and weather notes",
-        multiline: true,
-      },
-    ],
-    onDayContact: [
-      { key: "name", label: "On-the-day contact name" },
-      { key: "role", label: "Role" },
-      { key: "phone", label: "Phone" },
-      { key: "notes", label: "Contact notes", multiline: true },
-    ],
-    repertoireBrief: [
-      { key: "genrePreference", label: "General genre preference" },
-      { key: "ceremonyNotes", label: "Ceremony music notes", multiline: true },
-      { key: "groomsmenEntry", label: "Groomsmen entry" },
-      { key: "bridalPartyEntry", label: "Bridal party / processional" },
-      { key: "registerSigning", label: "Register signing" },
-      { key: "recessional", label: "Recessional" },
-      { key: "receptionEntrance", label: "Reception entrance" },
-      { key: "firstDance", label: "First dance" },
-      { key: "otherRequests", label: "Other music requests", multiline: true },
-    ],
-    rehearsal: [
-      { key: "date", label: "Rehearsal date", type: "date" },
-      { key: "location", label: "Rehearsal location" },
-      { key: "participants", label: "Participants" },
-      { key: "travelDetails", label: "Travel details" },
-      { key: "notes", label: "Rehearsal notes", multiline: true },
-    ],
-    logistics: [
-      { key: "secretSignal", label: "Secret / ceremony signal" },
-      { key: "chairs", label: "Chairs" },
-      { key: "shelter", label: "Gazebo / shelter" },
-      { key: "dressCode", label: "Dress code" },
-      { key: "amplification", label: "Amplification" },
-      { key: "guestCount", label: "Guest count", type: "number" },
-      { key: "other", label: "Other logistics", multiline: true },
-    ],
-    runSheet: [
-      { key: "details", label: "Confirmed running order", multiline: true },
-      { key: "notes", label: "Running-order notes", multiline: true },
-    ],
-  };
-function hasOperationalInfo(values: Record<string, string | number>) {
-  return Object.values(values).some((value) =>
-    typeof value === "number" ? value > 0 : value.trim().length > 0,
-  );
-}
-function numericTiming(value: string | number | undefined) {
-  if (value === undefined || value === "") return undefined;
-  const number = Number(value);
-  return Number.isFinite(number) && number >= 0 ? number : undefined;
-}
 function applyCalculatedFields(event: EventRecord) {
   event.finance.depositRequired = DEFAULT_DEPOSIT_AMOUNT;
   event.finance.depositAmount = DEFAULT_DEPOSIT_AMOUNT;
-  const timing = event.operational.timing;
-  const calculated = ceremonyTiming(
-    String(timing.ceremonyStartTime ?? ""),
-    numericTiming(timing.preCeremonyMinutes),
-    numericTiming(timing.ceremonyDurationMinutes),
-    event.durationMinutes,
-  );
-  timing.playStartTime = calculated.playStartTime;
-  timing.arrivalTime = calculated.arrivalTime;
-  timing.remainingPlayMinutes = calculated.remainingPlayMinutes;
+  Object.assign(event.operational.timing, timingCalculation(event));
 }
 function calculatedEvent(event: EventRecord) {
   const copy = structuredClone(event);
@@ -306,7 +147,7 @@ export function EventEditor({ event }: { event: EventRecord }) {
   const missing = missingDetails(draft);
   const blockers = readiness(draft, settings);
   return (
-    <form onSubmit={submit}>
+    <form className="event-editor" onSubmit={submit}>
       <header className="page-head">
         <div>
           <Link className="back-link" href="/clients">
@@ -623,12 +464,14 @@ export function EventEditor({ event }: { event: EventRecord }) {
       </Section>
       <Section id="details" title="Event details & unresolved information">
         <p className="section-intro">
-          Mark each detail Filled, Not Applicable, or Deferred. Deferred details
-          need a date or a workflow trigger and remain visible in your actions.
+          Complete the fields that matter for this event. Mark individual fields
+          N/A to hide their inputs while keeping their titles. Blank optional
+          fields do not block progression once their group is resolved. Deferred
+          groups need a date or workflow trigger.
         </p>
         {detailKeys.map((k) => (
           <div
-            className={`resolution-row state-${draft.details[k].state.toLowerCase().replace(" ", "-")}`}
+            className={`resolution-row state-${detailState(draft, k).toLowerCase().replace(" ", "-")}`}
             key={k}
           >
             <div className="resolution-heading">
@@ -638,12 +481,12 @@ export function EventEditor({ event }: { event: EventRecord }) {
               </div>
               <Check
                 label="N/A"
-                checked={draft.details[k].state === "Not Applicable"}
+                checked={detailState(draft, k) === "Not Applicable"}
                 onChange={(checked) =>
                   change((e) => {
                     e.details[k].state = checked
                       ? "Not Applicable"
-                      : hasOperationalInfo(e.operational[k]) ||
+                      : hasOperationalInfo(e, k) ||
                           Boolean(e.details[k].value.trim())
                         ? "Filled"
                         : "Unknown";
@@ -651,11 +494,11 @@ export function EventEditor({ event }: { event: EventRecord }) {
                 }
               />
             </div>
-            {draft.details[k].state !== "Not Applicable" && (
+            {detailState(draft, k) !== "Not Applicable" && (
               <div className="resolution-body">
                 <Select
                   label={`${detailLabels[k]} status`}
-                  value={draft.details[k].state}
+                  value={detailState(draft, k)}
                   options={["Unknown", "Filled", "Not Applicable", "Deferred"]}
                   onChange={(v) =>
                     change((e) => {
@@ -666,47 +509,76 @@ export function EventEditor({ event }: { event: EventRecord }) {
                 <div className="field-grid two operational-fields">
                   {operationalFields[k].map((field) => {
                     const current = draft.operational[k][field.key] ?? "";
+                    const notApplicable = fieldNotApplicable(
+                      draft,
+                      k,
+                      field.key,
+                    );
+                    const calculated = Boolean(
+                      field.calculated &&
+                        timingCalculation(draft)[field.key] !== undefined,
+                    );
                     const update = (value: string) =>
                       change((e) => {
                         e.operational[k][field.key] =
-                          field.type === "number" ? Number(value) : value;
-                        const hasInfo =
-                          hasOperationalInfo(e.operational[k]) ||
-                          Boolean(e.details[k].value.trim());
-                        if (e.details[k].state === "Unknown" && hasInfo)
-                          e.details[k].state = "Filled";
-                        if (e.details[k].state === "Filled" && !hasInfo)
-                          e.details[k].state = "Unknown";
+                          field.type === "number" && value !== ""
+                            ? Number(value)
+                            : value;
+                        syncDetailState(e, k);
                       });
-                    return field.multiline ? (
-                      <Notes
+                    return (
+                      <div
+                        className={`detail-field${notApplicable ? " is-not-applicable" : ""}`}
                         key={field.key}
-                        label={field.label}
-                        value={String(current)}
-                        onChange={update}
-                      />
-                    ) : (
-                      <Field
-                        key={field.key}
-                        label={field.label}
-                        type={field.type}
-                        min={field.type === "number" ? 0 : undefined}
-                        value={current}
-                        readOnly={field.calculated}
-                        showZero={field.calculated}
-                        suggestions={field.suggestions}
-                        step={field.type === "time" ? 900 : undefined}
-                        hint={
-                          field.calculated
-                            ? field.key === "arrivalTime"
-                              ? "Calculated as 30 minutes before playing starts."
-                              : field.key === "playStartTime"
-                                ? "Calculated from ceremony start minus pre-ceremony music."
-                                : "Calculated from playing duration minus pre-ceremony music and ceremony duration."
-                            : undefined
-                        }
-                        onChange={update}
-                      />
+                      >
+                        <div className="detail-field-heading">
+                          <strong>{field.label}</strong>
+                          <Check
+                            label="N/A"
+                            ariaLabel={`${field.label}: not applicable`}
+                            checked={notApplicable}
+                            onChange={(checked) =>
+                              change((e) =>
+                                setFieldNotApplicable(e, k, field.key, checked),
+                              )
+                            }
+                          />
+                        </div>
+                        {notApplicable ? (
+                          <small className="muted">Not applicable</small>
+                        ) : field.multiline ? (
+                          <Notes
+                            label={field.label}
+                            labelHidden
+                            value={String(current)}
+                            onChange={update}
+                          />
+                        ) : (
+                          <Field
+                            label={field.label}
+                            labelHidden
+                            type={field.type}
+                            min={field.type === "number" ? 0 : undefined}
+                            value={current}
+                            readOnly={calculated}
+                            showZero={calculated}
+                            suggestions={field.suggestions}
+                            step={field.type === "time" ? 900 : undefined}
+                            hint={
+                              calculated
+                                ? field.key === "arrivalTime"
+                                  ? "Calculated as 30 minutes before playing starts."
+                                  : field.key === "playStartTime"
+                                    ? "Calculated from ceremony start minus pre-ceremony music."
+                                    : "Calculated from playing duration minus pre-ceremony music and ceremony duration."
+                                : field.calculated
+                                  ? "Enter directly when ceremony timing does not apply."
+                                  : undefined
+                            }
+                            onChange={update}
+                          />
+                        )}
+                      </div>
                     );
                   })}
                 </div>
@@ -721,13 +593,13 @@ export function EventEditor({ event }: { event: EventRecord }) {
                       if (
                         e.details[k].state === "Filled" &&
                         !v.trim() &&
-                        !hasOperationalInfo(e.operational[k])
+                        !hasOperationalInfo(e, k)
                       )
                         e.details[k].state = "Unknown";
                     })
                   }
                 />
-                {draft.details[k].state === "Deferred" && (
+                {detailState(draft, k) === "Deferred" && (
                   <>
                     <div className="field-grid two">
                       <Field

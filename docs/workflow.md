@@ -52,3 +52,14 @@ Pending Communications means outbound work Horizon owes. Send through normal ema
 The deposit is fixed at $400. Total fee = performance + travel + arrangements + other charges. The final invoice amount = total fee - $400. Received = the $400 deposit once marked received + other/final payments. Balance floors at zero; credits remain visible. Estimated profit subtracts all player fees and other costs. No invoice generator, bank or tax integration is included.
 
 For ceremony timing, playing start = ceremony start - pre-ceremony music. Arrival = playing start - 30 minutes. Remaining playing time = total playing duration - pre-ceremony music - ceremony duration. These three results are calculated and read-only.
+
+
+## Individual field applicability — 28 October 2026
+
+Each operational field has its own N/A checkbox inside a lightly tinted rounded container. Selecting N/A hides only that input and keeps its title, N/A indicator and restore control visible. Group N/A remains independent. Hidden values are retained and restored on unchecking; no live event is automatically reclassified by event type.
+
+Applicability markers use reserved `__notApplicable:<fieldKey>` keys with string value `true` inside the existing operational group JSON. This keeps the current atomic save, revision checks, export and database functions; no migration or backfill is needed. Markers and hidden values do not count as supplied content. A group resolves from applicable content/additional notes or all its individual fields marked N/A. A partial set of N/A selections alone leaves an empty group unresolved. Explicit Deferred and group N/A states retain precedence. Blank optional subfields do not add new readiness gates; core details, confirmation, musicians, setlist and configured payment requirements still apply.
+
+Playing start can be entered directly when applicable ceremony inputs cannot calculate it. Arrival still calculates 30 minutes before applicable playing start (or Other playing starts). N/A inputs do not drive calculations; N/A calculated outputs are left hidden and retain their values. The earlier statement that all three timing outputs are always read-only is superseded by this direct-entry fallback.
+
+Validation uses synthetic events and local PostgreSQL tests. Production outcomes and the owner’s specific private-event record have not been verified; no production records were changed during implementation.
