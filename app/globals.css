@@ -796,3 +796,24 @@ tbody tr:hover {
     grid-template-columns: repeat(3, 1fr);
   }
 }
+
+.mcp-consent {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+.mcp-consent > section {
+  width: min(100%, 580px);
+  padding: 32px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: white;
+}
+.mcp-consent p {
+  line-height: 1.6;
+  margin: 16px 0;
+}
+.mcp-consent label {
+  margin-bottom: 16px;
+}

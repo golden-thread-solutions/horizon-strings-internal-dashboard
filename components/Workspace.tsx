@@ -64,7 +64,17 @@ export function useWorkspace() {
   return v;
 }
 
-export function Workspace({
+export function Workspace(props: {
+  children: ReactNode;
+  demo: boolean;
+  configured: boolean;
+}) {
+  const pathname = usePathname();
+  // Consent must not load the operational workspace or synchronise enquiries.
+  if (pathname === "/oauth/consent") return <>{props.children}</>;
+  return <BusinessWorkspace {...props} />;
+}
+function BusinessWorkspace({
   children,
   demo,
   configured,
