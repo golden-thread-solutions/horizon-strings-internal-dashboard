@@ -2,6 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { PGlite } from "@electric-sql/pglite";
+import {
+  setFieldNotApplicable,
+  fieldNotApplicable,
+} from "../lib/event-details";
 import { newEvent, defaultSettings } from "../lib/model";
 
 test("migration, RLS, atomic save, stale revisions and settings against Postgres", async () => {
@@ -111,6 +115,8 @@ test("migration, RLS, atomic save, stale revisions and settings against Postgres
       email: "",
       notes: "",
     });
+    saved.operational.venueSetup.secondAddress = "Retained address";
+    setFieldNotApplicable(saved, "venueSetup", "secondAddress", true);
     saved.operational.timing.ceremonyStartTime = "15:30";
     saved.operational.timing.ceremonyDurationMinutes = 30;
     const second = (
@@ -119,6 +125,14 @@ test("migration, RLS, atomic save, stale revisions and settings against Postgres
         [JSON.stringify(saved)],
       )
     ).rows[0].event;
+    assert.equal(
+      fieldNotApplicable(second, "venueSetup", "secondAddress"),
+      true,
+    );
+    assert.equal(
+      second.operational.venueSetup.secondAddress,
+      "Retained address",
+    );
     assert.equal(second.revision, 2);
     assert.equal(second.contacts.length, 1);
     assert.equal(second.operational.timing.ceremonyStartTime, "15:30");
