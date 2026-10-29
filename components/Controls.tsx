@@ -13,6 +13,7 @@ export function Field({
   suggestions,
   step,
   showZero = false,
+  labelHidden = false,
 }: {
   label: string;
   value: string | number;
@@ -26,13 +27,14 @@ export function Field({
   suggestions?: readonly (string | number)[];
   step?: number | string;
   showZero?: boolean;
+  labelHidden?: boolean;
 }) {
   const suggestionId = useId();
   const displayValue =
     type === "number" && value === 0 && !showZero ? "" : value;
   return (
     <label>
-      {label}
+      <span className={labelHidden ? "sr-only" : undefined}>{label}</span>
       <input
         type={type}
         value={displayValue}
@@ -43,7 +45,9 @@ export function Field({
         readOnly={readOnly}
         list={suggestions?.length ? suggestionId : undefined}
         onInput={
-          type === "date" ? (e) => onChange(e.currentTarget.value) : undefined
+          type === "date" || type === "time"
+            ? (e) => onChange(e.currentTarget.value)
+            : undefined
         }
         onChange={(e) => onChange(e.target.value)}
       />
@@ -86,15 +90,18 @@ export function Check({
   label,
   checked,
   onChange,
+  ariaLabel,
 }: {
   label: string;
   checked: boolean;
+  ariaLabel?: string;
   onChange: (v: boolean) => void;
 }) {
   return (
     <label className="check">
       <input
         type="checkbox"
+        aria-label={ariaLabel}
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
       />
@@ -104,16 +111,18 @@ export function Check({
 }
 export function Notes({
   label,
+  labelHidden = false,
   value,
   onChange,
 }: {
   label: string;
+  labelHidden?: boolean;
   value: string;
   onChange: (v: string) => void;
 }) {
   return (
     <label>
-      {label}
+      <span className={labelHidden ? "sr-only" : undefined}>{label}</span>
       <textarea
         rows={3}
         value={value}

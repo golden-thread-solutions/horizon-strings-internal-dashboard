@@ -1,3 +1,4 @@
+import { detailState, fieldNotApplicable } from "./event-details";
 import {
   detailKeys,
   detailLabels,
@@ -47,6 +48,48 @@ export function ceremonyTiming(
           )
         : 0,
   };
+}
+
+// Calculate only from applicable, supplied inputs. Other events can use direct times.
+export function timingCalculation(
+  e: EventRecord,
+): Record<string, string | number> {
+  if (e.details.timing.state === "Not Applicable") return {};
+  const timing = e.operational.timing;
+  const active = (key: string) => !fieldNotApplicable(e, "timing", key);
+  const number = (key: string) => {
+    const value = timing[key];
+    if (!active(key) || value === undefined || value === "") return undefined;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
+  };
+  const pre = number("preCeremonyMinutes");
+  const duration = number("ceremonyDurationMinutes");
+  const ceremony = active("ceremonyStartTime")
+    ? String(timing.ceremonyStartTime ?? "")
+    : "";
+  const calculated = ceremonyTiming(ceremony, pre, duration, e.durationMinutes);
+  const result: Record<string, string | number> = {};
+  if (active("playStartTime") && calculated.playStartTime)
+    result.playStartTime = calculated.playStartTime;
+  const start = active("playStartTime")
+    ? String(result.playStartTime ?? timing.playStartTime ?? "")
+    : "";
+  const arrival = subtractMinutes(
+    start ||
+      (active("otherStartTime") ? String(timing.otherStartTime ?? "") : ""),
+    30,
+  );
+  if (active("arrivalTime") && arrival) result.arrivalTime = arrival;
+  if (
+    active("remainingPlayMinutes") &&
+    pre !== undefined &&
+    duration !== undefined &&
+    e.durationMinutes > 0
+  ) {
+    result.remainingPlayMinutes = calculated.remainingPlayMinutes;
+  }
+  return result;
 }
 
 export function businessToday(now = new Date()) {
@@ -131,7 +174,7 @@ export function missingDetails(e: EventRecord) {
   )
     missing.push("Main contact with phone or email");
   for (const key of detailKeys)
-    if (e.details[key].state === "Unknown") missing.push(detailLabels[key]);
+    if (detailState(e, key) === "Unknown") missing.push(detailLabels[key]);
   return missing;
 }
 export function readiness(e: EventRecord, s: Settings) {
@@ -306,7 +349,7 @@ export function eventActions(
           weeksBefore(e, s.arrangementsWeeks),
           "repertoire",
         );
-      if (["Unknown", "Deferred"].includes(e.details.rehearsal.state))
+      if (["Unknown", "Deferred"].includes(detailState(e, "rehearsal")))
         add(
           "rehearsal",
           "Resolve rehearsal arrangements",
