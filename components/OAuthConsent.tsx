@@ -131,7 +131,7 @@ export default function OAuthConsent() {
           <>
             <p>
               <strong>{client || "Loading connection…"}</strong> is requesting
-              read access to Horizon Strings.
+              access to Horizon Strings.
             </p>
             <p>
               This includes events and client contacts, saved notes and
@@ -140,9 +140,13 @@ export default function OAuthConsent() {
               included in conversations in the connected account.
             </p>
             <p>
-              This connection cannot edit or delete records, convert enquiries,
-              send messages or download linked files. Only allow a connection
-              and ChatGPT account you trust.
+              If an owner separately enables write access for this connection,
+              it can create events and update operational event details,
+              contacts, tasks, recorded communications, musicians, repertoire
+              and workflow settings. Financial information remains read-only. It
+              cannot delete or archive records, convert enquiries, send messages
+              or download linked files. Only allow a connection and ChatGPT
+              account you trust.
             </p>
             <p>Identity scopes: {scope || "Loading…"}</p>
             <div className="row-actions">
@@ -159,7 +163,7 @@ export default function OAuthConsent() {
                 disabled={busy || !client}
                 onClick={() => void decide(true)}
               >
-                Allow read access
+                Allow connection
               </button>
             </div>
           </>

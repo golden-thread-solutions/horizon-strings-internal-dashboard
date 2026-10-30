@@ -7,7 +7,9 @@ import {
   pieceSchema,
   websiteEnquirySchema,
   type Dataset,
+  newEvent,
 } from "../model";
+import { mutationSchema, type Mutation } from "./mutations";
 import {
   businessToday,
   deriveStage,
@@ -44,9 +46,129 @@ function searchableText(value: unknown): string {
   return "";
 }
 
+function mergeObjects(base: unknown, patch: unknown): unknown {
+  if (!patch || typeof patch !== "object" || Array.isArray(patch)) return patch;
+  const result: Record<string, unknown> = Object.assign(Object.create(null), base);
+  for (const [key, value] of Object.entries(patch))
+    result[key] = mergeObjects(result[key], value);
+  return result;
+}
+
 // Never invoke the normal workspace loader: it converts website enquiries on read.
 export class HorizonService {
   constructor(private readonly db: Pick<SupabaseClient, "rpc">) {}
+  async change(input: Mutation) {
+    if (!mcpConfig().writesEnabled)
+      throw new HorizonMcpError(
+        403,
+        "writes_disabled",
+        "Dashboard writes are disabled.",
+      );
+    const command = mutationSchema.parse(input);
+    // This checks permission before reading records or constructing a candidate.
+    const access = await this.db.rpc("hs_mcp_can_write");
+    if (access.error || access.data !== true)
+      throw new HorizonMcpError(
+        403,
+        "write_denied",
+        "Dashboard write access has not been granted or has been revoked.",
+      );
+    // An exact retry must return its original receipt even after other edits.
+    const prior = await this.db.rpc("hs_mcp_retry", { p_command: command });
+    if (prior.error) this.writeError(prior.error);
+    if (prior.data) return prior.data as Record<string, unknown>;
+    const data = await this.data();
+    let record: unknown;
+    if (command.operation === "create_event") {
+      record = eventSchema.parse({
+        ...newEvent(command.name, businessToday()),
+        id: command.id,
+      });
+    } else if (
+      command.operation === "update_event" ||
+      command.operation === "set_event_item"
+    ) {
+      const current = data.events.find((e) => e.id === command.id);
+      if (!current)
+        throw new HorizonMcpError(404, "not_found", "Event not found.");
+      if (current.revision !== command.expectedRevision) this.conflict();
+      if (current.archived)
+        throw new HorizonMcpError(
+          400,
+          "archived",
+          "Restore this event in the dashboard before editing it.",
+        );
+      if (command.operation === "update_event") {
+        record = eventSchema.parse(mergeObjects(current, command.patch));
+      } else {
+        const list = current[command.collection];
+        const existing = list.find((v) => v.id === command.data.id);
+        const item =
+          command.collection === "musicians"
+            ? { fee: 0, paid: false, ...existing, ...command.data }
+            : command.data;
+        record = eventSchema.parse({
+          ...current,
+          [command.collection]: existing
+            ? list.map((v) => (v.id === command.data.id ? item : v))
+            : [...list, item],
+        });
+      }
+    } else if (command.operation === "update_settings") {
+      if (data.settings.revision !== command.expectedRevision) this.conflict();
+      record = settingsSchema.parse({ ...data.settings, ...command.patch });
+    } else {
+      const list =
+        command.operation === "save_musician" ? data.musicians : data.pieces;
+      const current = list.find((v) => v.id === command.id);
+      if ((current?.revision ?? 0) !== command.expectedRevision)
+        this.conflict();
+      record = {
+        ...command.data,
+        id: command.id,
+        revision: command.expectedRevision,
+      };
+    }
+    const result = await this.db.rpc("hs_mcp_change_record", {
+      p_command: command,
+      p_record: record,
+    });
+    if (result.error) this.writeError(result.error);
+    if (!result.data)
+      throw new HorizonMcpError(
+        503,
+        "unavailable",
+        "The database did not confirm the save. Retry with the same requestId.",
+      );
+    return result.data as Record<string, unknown>;
+  }
+  private conflict(): never {
+    throw new HorizonMcpError(
+      409,
+      "conflict",
+      "This record changed. Read it again and reconsider the edit before submitting a new command.",
+    );
+  }
+  private writeError(error: { code?: string }): never {
+    if (error.code === "40001" || error.code === "23505") this.conflict();
+    if (error.code === "42501")
+      throw new HorizonMcpError(
+        403,
+        "write_denied",
+        "Write access was denied or revoked.",
+      );
+    if (error.code === "22023")
+      throw new HorizonMcpError(
+        400,
+        "invalid_request",
+        "Invalid command or requestId reused with a different command.",
+      );
+    throw new HorizonMcpError(
+      503,
+      "unavailable",
+      "Save could not be confirmed. Retry the identical command with the same requestId.",
+    );
+  }
   async assertAccess() {
     const { data, error } = await this.db.rpc("hs_mcp_can_read");
     if (error)
@@ -185,7 +307,7 @@ export class HorizonService {
       settings: (await this.data()).settings,
       today: businessToday(),
       timezone: "Australia/Sydney",
-      readOnly: true,
+      writesEnabled: mcpConfig().writesEnabled,
     };
   }
   async search(query: string) {

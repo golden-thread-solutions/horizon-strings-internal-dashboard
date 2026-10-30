@@ -10,11 +10,13 @@ import { callbackUrl } from "../lib/mcp/consent";
 import { GET as metadata } from "../app/.well-known/oauth-protected-resource/mcp/route";
 import { POST as endpoint } from "../app/mcp/route";
 import { mcpConfig } from "../lib/mcp/config";
+import { mutationSchema } from "../lib/mcp/mutations";
 import type { SupabaseClient } from "@supabase/supabase-js";
 process.env.MCP_PUBLIC_ORIGIN = "https://horizon.example";
 process.env.NEXT_PUBLIC_SUPABASE_URL = "https://database.example";
 process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = "fixture-publishable";
 process.env.MCP_ENABLED = "true";
+process.env.MCP_ENABLE_WRITES = "false";
 const today = "2026-09-18";
 function fixture(name = "Synthetic event"): Dataset {
   const e = newEvent(name, today);
@@ -206,6 +208,137 @@ test("lists page without losing archived records and search/fetch remain caller-
     /revoked/,
   );
 });
+test("write transport, independent gates, revisions, safe retry and targeted item preservation", async () => {
+  const data = fixture();
+  data.events[0].revision = 1;
+  let permitted = true;
+  let mutations = 0;
+  const receipts = new Map<string, { command: string; result: unknown }>();
+  const db = {
+    rpc: async (name: string, args?: Record<string, unknown>) => {
+      if (name === "hs_mcp_can_write") return { data: permitted, error: null };
+      if (name === "hs_mcp_retry") {
+        const command = args!.p_command as { requestId: string };
+        const receipt = receipts.get(command.requestId);
+        if (receipt && receipt.command !== JSON.stringify(command))
+          return { data: null, error: { code: "22023" } };
+        return { data: receipt?.result ?? null, error: null };
+      }
+      if (name === "hs_mcp_read_workspace")
+        return { data: structuredClone(data), error: null };
+      assert.equal(name, "hs_mcp_change_record");
+      mutations++;
+      const command = args!.p_command as {
+        requestId: string;
+        operation: string;
+      };
+      const record = args!.p_record as (typeof data.events)[number];
+      record.revision++;
+      data.events[0] = record;
+      const result = { saved: true, record, requestId: command.requestId };
+      receipts.set(command.requestId, {
+        command: JSON.stringify(command),
+        result,
+      });
+      return { data: result, error: null };
+    },
+  } as unknown as Pick<SupabaseClient, "rpc">;
+  const writer = new HorizonService(db);
+  const command = {
+    operation: "update_event" as const,
+    id: data.events[0].id,
+    expectedRevision: 1,
+    requestId: crypto.randomUUID(),
+    patch: { notes: "Written through MCP", milestones: { responded: today } },
+  };
+  await assert.rejects(writer.change(command), /writes are disabled/);
+  process.env.MCP_ENABLE_WRITES = "true";
+  try {
+    const handler = mcpTransport(writer);
+    const tools = (await rpc(handler, "tools/list", {})).result.tools;
+    assert.equal(tools.length, 9);
+    assert.equal(
+      tools.find((t: { name: string }) => t.name === "change_record")
+        .annotations.readOnlyHint,
+      false,
+    );
+    permitted = false;
+    await assert.rejects(writer.change(command), /not been granted/);
+    permitted = true;
+    const saved = await rpc(handler, "tools/call", {
+      name: "change_record",
+      arguments: { command },
+    });
+    assert.equal(
+      saved.result.structuredContent.record.notes,
+      "Written through MCP",
+    );
+    assert.equal(saved.result.structuredContent.record.revision, 2);
+    assert.deepEqual(
+      saved.result.structuredContent.record.finance,
+      fixture().events[0].finance,
+    );
+    await writer.change(command);
+    assert.equal(mutations, 1);
+    await assert.rejects(
+      writer.change({ ...command, patch: { notes: "Changed retry" } }),
+      /requestId reused/,
+    );
+    await assert.rejects(
+      writer.change({ ...command, requestId: crypto.randomUUID() }),
+      /record changed/,
+    );
+    for (const patch of [
+      { finance: { performance: 99 } },
+      { archived: true },
+      { contacts: [] },
+      { revision: 99 },
+    ])
+      assert.equal(
+        mutationSchema.safeParse({ ...command, patch }).success,
+        false,
+      );
+    const item = {
+      id: crypto.randomUUID(),
+      role: "Planner",
+      name: "Fixture planner",
+      email: "",
+      phone: "",
+      notes: "",
+    };
+    const child = {
+      operation: "set_event_item" as const,
+      collection: "contacts" as const,
+      id: command.id,
+      expectedRevision: 2,
+      requestId: crypto.randomUUID(),
+      data: item,
+    };
+    await writer.change(child);
+    assert.equal(data.events[0].contacts.length, 1);
+    const other = { ...item, id: crypto.randomUUID(), name: "Second contact" };
+    await writer.change({
+      ...child,
+      expectedRevision: 3,
+      requestId: crypto.randomUUID(),
+      data: other,
+    });
+    assert.equal(data.events[0].contacts.length, 2);
+    assert.deepEqual(data.events[0].contacts[0], item);
+    assert.equal((await writer.change(command)).record instanceof Object, true);
+    assert.equal(mutations, 3);
+    const invalid = await rpc(handler, "tools/call", {
+      name: "change_record",
+      arguments: {
+        command: { ...command, patch: { finance: { performance: 99 } } },
+      },
+    });
+    assert.ok(invalid.error || invalid.result.isError);
+  } finally {
+    process.env.MCP_ENABLE_WRITES = "false";
+  }
+});
+
 test("OAuth signatures, resource audience, issuer, expiry and identity are checked", async () => {
   const { publicKey, privateKey } = await generateKeyPair("ES256");
   const jwk = await exportJWK(publicKey);

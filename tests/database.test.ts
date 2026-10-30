@@ -7,6 +7,8 @@ import {
   fieldNotApplicable,
 } from "../lib/event-details";
 import { newEvent, defaultSettings } from "../lib/model";
+import { HorizonService } from "../lib/mcp/service";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 test("migration, RLS, atomic save, stale revisions and settings against Postgres", async () => {
   const db = new PGlite();
@@ -385,7 +387,457 @@ test("migration, RLS, atomic save, stale revisions and settings against Postgres
       ).rows[0].id,
       null,
     );
-    await db.exec("update public.hs_mcp_clients set enabled=false");
+    await db.exec(
+      await readFile(
+        new URL(
+          "../supabase/migrations/20261029214158_horizon_readwrite_mcp.sql",
+          import.meta.url,
+        ),
+        "utf8",
+      ),
+    );
+    const change = async (command: unknown, record: unknown) =>
+      (
+        await db.query<{ result: { record: typeof second; saved: boolean } }>(
+          "select public.hs_mcp_change_record($1::jsonb,$2::jsonb) as result",
+          [JSON.stringify(command), JSON.stringify(record)],
+        )
+      ).rows[0].result;
+    const edit = {
+      operation: "update_event",
+      requestId: crypto.randomUUID(),
+      id: second.id,
+      expectedRevision: second.revision,
+      patch: { name: "MCP updated event" },
+    };
+    const candidate = { ...second, ...edit.patch };
+    await db.exec("set role authenticated");
+    assert.equal(
+      (
+        await db.query<{ ok: boolean }>(
+          "select public.hs_mcp_can_write() as ok",
+        )
+      ).rows[0].ok,
+      false,
+    );
+    await assert.rejects(change(edit, candidate), /MCP write access denied/);
+    await db.exec(
+      "reset role; update public.hs_mcp_clients set write_enabled=true; set role authenticated",
+    );
+    const written = await change(edit, candidate);
+    assert.equal(written.record.name, "MCP updated event");
+    assert.equal(written.record.revision, 3);
+    assert.deepEqual(written.record.finance, second.finance);
+    assert.deepEqual(await change(edit, candidate), written);
+    assert.deepEqual(
+      (
+        await db.query<{ result: unknown }>(
+          "select public.hs_mcp_retry($1::jsonb) as result",
+          [JSON.stringify(edit)],
+        )
+      ).rows[0].result,
+      written,
+    );
+    await assert.rejects(
+      change({ ...edit, patch: { name: "Different retry" } }, candidate),
+      /Request ID reused/,
+    );
+    await assert.rejects(
+      change({ ...edit, requestId: crypto.randomUUID() }, candidate),
+      /Stale event/,
+    );
+    const bad = {
+      ...edit,
+      requestId: crypto.randomUUID(),
+      expectedRevision: 3,
+    };
+    await assert.rejects(
+      change(bad, {
+        ...written.record,
+        finance: { ...written.record.finance, performance: 999 },
+      }),
+      /Invalid event candidate/,
+    );
+    await assert.rejects(
+      change({ ...bad, patch: { finance: {} } }, written.record),
+      /Invalid event fields/,
+    );
+    await assert.rejects(
+      change({ ...bad, patch: { archived: true } }, written.record),
+      /Invalid event fields/,
+    );
+    const contact = {
+      id: crypto.randomUUID(),
+      name: "Added contact",
+      role: "Planner",
+      email: "",
+      phone: "",
+      notes: "",
+    };
+    const childCommand = {
+      operation: "set_event_item",
+      requestId: crypto.randomUUID(),
+      id: second.id,
+      expectedRevision: 3,
+      collection: "contacts",
+      data: contact,
+    };
+    const childSaved = await change(childCommand, {
+      ...written.record,
+      contacts: [...written.record.contacts, contact],
+    });
+    assert.equal(childSaved.record.contacts.length, 2);
+    assert.equal(childSaved.record.revision, 4);
+    assert.deepEqual(childSaved.record.contacts[0], second.contacts[0]);
+    await assert.rejects(
+      change(
+        {
+          ...childCommand,
+          requestId: crypto.randomUUID(),
+          expectedRevision: 4,
+        },
+        { ...childSaved.record, contacts: [contact] },
+      ),
+      /Invalid event candidate/,
+    );
+    // A valid second change must not change the receipt returned by the first retry.
+    assert.deepEqual(await change(edit, candidate), written);
+    const invalidDetail = {
+      state: "Deferred",
+      value: "",
+      dueDate: "",
+      trigger: "",
+    };
+    const failedCommand = {
+      operation: "update_event",
+      requestId: crypto.randomUUID(),
+      id: second.id,
+      expectedRevision: 4,
+      patch: { details: { rehearsal: invalidDetail } },
+    };
+    await assert.rejects(
+      change(failedCommand, {
+        ...childSaved.record,
+        details: { ...childSaved.record.details, rehearsal: invalidDetail },
+      }),
+      /check constraint/,
+    );
+    assert.equal(
+      (
+        await db.query<{ data: { events: (typeof second)[] } }>(
+          "select public.hs_mcp_read_workspace() as data",
+        )
+      ).rows[0].data.events.find((e) => e.id === second.id)!.revision,
+      4,
+    );
+    await assert.rejects(
+      change(
+        {
+          ...failedCommand,
+          operation: "set_event_item",
+          collection: "musicians",
+          data: { id: crypto.randomUUID(), fee: 123, paid: true },
+        },
+        childSaved.record,
+      ),
+      /Financial edits excluded/,
+    );
+    await assert.rejects(
+      db.query("select hs_mcp_private.save_event($1::jsonb)", [
+        JSON.stringify(childSaved.record),
+      ]),
+      /permission denied/,
+    );
+    await assert.rejects(
+      db.query("select * from public.hs_mcp_requests"),
+      /permission denied/,
+    );
+    await assert.rejects(
+      db.query("select * from public.hs_mcp_activity"),
+      /permission denied/,
+    );
+    assert.equal(
+      (await db.query("select * from public.hs_events")).rows.length,
+      0,
+    );
+    await assert.rejects(
+      db.query("select public.hs_save_event($1::jsonb)", [
+        JSON.stringify(childSaved.record),
+      ]),
+      /Owner access required/,
+    );
+    const musicianId = crypto.randomUUID();
+    const musicianData = {
+      name: "Synthetic catalogue musician",
+      instrument: "Violin",
+      email: "",
+      phone: "",
+      notes: "",
+    };
+    const directoryCommand = {
+      operation: "save_musician",
+      requestId: crypto.randomUUID(),
+      id: musicianId,
+      expectedRevision: 0,
+      data: musicianData,
+    };
+    const directorySaved = await change(directoryCommand, {
+      ...musicianData,
+      id: musicianId,
+      revision: 0,
+    });
+    assert.equal(directorySaved.record.revision, 1);
+    await db.exec("reset role");
+    await setClaims({ sub: owner, role: "authenticated" });
+    await db.exec("set role authenticated");
+    await db.query(
+      "update public.hs_musicians set notes='Human edit' where id=$1",
+      [musicianId],
+    );
+    await setClaims(claims);
+    await assert.rejects(
+      change(
+        {
+          ...directoryCommand,
+          requestId: crypto.randomUUID(),
+          expectedRevision: 1,
+        },
+        { ...musicianData, id: musicianId, revision: 1 },
+      ),
+      /Stale directory record/,
+    );
+    const settingsCommand = {
+      operation: "update_settings",
+      requestId: crypto.randomUUID(),
+      expectedRevision: settings.revision,
+      patch: { responseDays: 3 },
+    };
+    const settingsWritten = await change(settingsCommand, {
+      ...settings,
+      responseDays: 3,
+    });
+    assert.equal(settingsWritten.record.revision, 2);
+    const created = newEvent("Created through MCP", "2026-10-30");
+    const createCommand = {
+      operation: "create_event",
+      requestId: crypto.randomUUID(),
+      id: created.id,
+      expectedRevision: 0,
+      name: created.name,
+    };
+    const createdResult = await change(createCommand, created);
+    assert.equal(createdResult.record.revision, 1);
+    assert.deepEqual(await change(createCommand, created), createdResult);
+    for (const altered of [
+      { ...claims, aud: "wrong" },
+      { ...claims, client_id: "unknown" },
+      { ...claims, session_id: crypto.randomUUID() },
+      { ...claims, is_anonymous: true },
+      { sub: owner, role: "authenticated" },
+    ]) {
+      await setClaims(altered);
+      await assert.rejects(change(edit, candidate), /MCP write access denied/);
+    }
+    await setClaims(claims);
+    await db.exec(
+      "reset role; update public.hs_mcp_clients set write_enabled=false; set role authenticated",
+    );
+    await assert.rejects(change(edit, candidate), /MCP write access denied/);
+    assert.ok(
+      (await db.query("select public.hs_mcp_read_workspace()")).rows.length,
+    );
+    await db.exec("reset role");
+    assert.equal(
+      (await db.query("select * from public.hs_mcp_activity")).rows.length,
+      5,
+    );
+    assert.equal(
+      (await db.query("select * from public.hs_mcp_requests")).rows.length,
+      5,
+    );
+    // Exercise the actual service against PostgreSQL for every remaining variant.
+    process.env.MCP_PUBLIC_ORIGIN = "https://horizon.example";
+    process.env.NEXT_PUBLIC_SUPABASE_URL = "https://database.example";
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = "synthetic";
+    process.env.MCP_ENABLE_WRITES = "true";
+    const writer = new HorizonService({
+      rpc: async (name: string, args?: Record<string, unknown>) => {
+        try {
+          const query =
+            name === "hs_mcp_change_record"
+              ? await db.query<{ data: unknown }>(
+                  "select public.hs_mcp_change_record($1::jsonb,$2::jsonb) as data",
+                  [
+                    JSON.stringify(args!.p_command),
+                    JSON.stringify(args!.p_record),
+                  ],
+                )
+              : name === "hs_mcp_retry"
+                ? await db.query<{ data: unknown }>(
+                    "select public.hs_mcp_retry($1::jsonb) as data",
+                    [JSON.stringify(args!.p_command)],
+                  )
+                : await db.query<{ data: unknown }>(
+                    `select public.${name}() as data`,
+                  );
+          return { data: query.rows[0].data, error: null };
+        } catch (error) {
+          return { data: null, error };
+        }
+      },
+    } as unknown as Pick<SupabaseClient, "rpc">);
+    await db.exec(
+      "update public.hs_mcp_clients set write_enabled=true; set role authenticated",
+    );
+    let eventRevision = 4;
+    for (const item of [
+      {
+        collection: "tasks" as const,
+        data: {
+          id: crypto.randomUUID(),
+          title: "Synthetic task",
+          kind: "Task" as const,
+          dueDate: "2027-01-01",
+          assignee: "Owner",
+          recipient: "",
+          notes: "",
+          done: false,
+          completedAt: "",
+        },
+      },
+      {
+        collection: "communicationLog" as const,
+        data: {
+          id: crypto.randomUUID(),
+          date: "2026-09-18",
+          recipient: "Fixture",
+          summary: "Recorded, not sent",
+        },
+      },
+      {
+        collection: "repertoire" as const,
+        data: {
+          id: crypto.randomUUID(),
+          pieceId: "",
+          title: "Synthetic request",
+          moment: "Ceremony",
+          status: "Requested" as const,
+          notes: "",
+        },
+      },
+      {
+        collection: "musicians" as const,
+        data: {
+          id: crypto.randomUUID(),
+          musicianId,
+          name: "Synthetic catalogue musician",
+          instrument: "Violin",
+          confirmed: false,
+          musicSent: false,
+          contractRequired: false,
+          signed: false,
+          notes: "",
+        },
+      },
+    ]) {
+      const response = await writer.change({
+        operation: "set_event_item",
+        requestId: crypto.randomUUID(),
+        id: second.id,
+        expectedRevision: eventRevision,
+        ...item,
+      });
+      eventRevision++;
+      assert.equal((response.record as typeof second).revision, eventRevision);
+      assert.deepEqual(
+        (response.record as typeof second).finance,
+        second.finance,
+      );
+    }
+    const detailResponse = await writer.change({
+      operation: "update_event",
+      requestId: crypto.randomUUID(),
+      id: second.id,
+      expectedRevision: eventRevision,
+      patch: {
+        details: {
+          rehearsal: {
+            state: "Not Applicable",
+            value: "",
+            dueDate: "",
+            trigger: "",
+          },
+        },
+      },
+    });
+    assert.equal(
+      (detailResponse.record as typeof second).details.rehearsal.state,
+      "Not Applicable",
+    );
+    assert.deepEqual(
+      (detailResponse.record as typeof second).details.timing,
+      second.details.timing,
+    );
+    const newId = crypto.randomUUID();
+    await writer.change({
+      operation: "create_event",
+      id: newId,
+      expectedRevision: 0,
+      requestId: crypto.randomUUID(),
+      name: "Service-created event",
+    });
+    const pieceId = crypto.randomUUID();
+    const pieceData = {
+      title: "Synthetic piece",
+      artist: "Fixture",
+      musicUrl: "",
+      genre: "Classical" as const,
+      weddingSuitable: "Unreviewed" as const,
+      notes: "",
+    };
+    await writer.change({
+      operation: "save_piece",
+      id: pieceId,
+      expectedRevision: 0,
+      requestId: crypto.randomUUID(),
+      data: pieceData,
+    });
+    await writer.change({
+      operation: "save_piece",
+      id: pieceId,
+      expectedRevision: 1,
+      requestId: crypto.randomUUID(),
+      data: { ...pieceData, notes: "Edited" },
+    });
+    await writer.change({
+      operation: "save_musician",
+      id: musicianId,
+      expectedRevision: 2,
+      requestId: crypto.randomUUID(),
+      data: { ...musicianData, notes: "Edited through service" },
+    });
+    await writer.change({
+      operation: "update_settings",
+      expectedRevision: 2,
+      requestId: crypto.randomUUID(),
+      patch: { responseDays: 4 },
+    });
+    // Old records with operational={} still accept an unrelated name/notes edit.
+    await db.exec("reset role");
+    await db.query(
+      "update public.hs_events set operational='{}'::jsonb where id=$1",
+      [newId],
+    );
+    await db.exec("set role authenticated");
+    await writer.change({
+      operation: "update_event",
+      id: newId,
+      expectedRevision: 1,
+      requestId: crypto.randomUUID(),
+      patch: { notes: "Legacy-compatible edit" },
+    });
+    process.env.MCP_ENABLE_WRITES = "false";
+    await db.exec("reset role; update public.hs_mcp_clients set enabled=false");
     await db.exec("set role authenticated");
     await assert.rejects(
       db.query("select public.hs_mcp_read_workspace()"),
