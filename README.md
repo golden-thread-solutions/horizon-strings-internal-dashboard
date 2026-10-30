@@ -25,6 +25,7 @@ npm run build
 Demo records live only in this browser. Production never uses demo mode. No Supabase service-role key is needed.
 
 - [Deployment and live verification](docs/deployment.md)
+- [MCP access, write scope and release steps](docs/MCP_SETUP.md)
 - [Architecture and data model](docs/architecture.md)
 - [Workflow and proposed defaults](docs/workflow.md)
 - [Decision log](docs/decision-log.md)
