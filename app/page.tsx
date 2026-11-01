@@ -1,4 +1,4 @@
-import { ActionQueue } from "@/components/ActionQueue";
+import { EventBoard } from "@/components/EventBoard";
 export default function Page() {
-  return <ActionQueue />;
+  return <EventBoard />;
 }

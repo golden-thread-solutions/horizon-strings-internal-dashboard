@@ -258,7 +258,7 @@ export function eventActions(
   s: Settings,
   today = businessToday(),
 ): Action[] {
-  if (e.archived) return [];
+  if (e.archived || e.deletedAt) return [];
   const actions: Action[] = [];
   const add = (
     key: string,

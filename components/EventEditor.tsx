@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useWorkspace } from "./Workspace";
 import { Field, Select, Check, Notes, Section, errorMessage } from "./Controls";
@@ -29,6 +30,7 @@ import {
   totalFee,
   weeksBefore,
 } from "@/lib/workflow";
+import { PersonSelect } from "./PersonSelect";
 import { ActionTable } from "./ActionQueue";
 import {
   operationalFields,
@@ -77,7 +79,8 @@ function calculatedEvent(event: EventRecord) {
   return copy;
 }
 export function EventEditor({ event }: { event: EventRecord }) {
-  const { data, saveEvent, refresh } = useWorkspace();
+  const { data, saveEvent, refresh, setEventDeleted } = useWorkspace();
+  const router = useRouter();
   const [draft, setDraft] = useState(() => calculatedEvent(event));
   const [saved, setSaved] = useState(() => JSON.stringify(event));
   const [busy, setBusy] = useState(false);
@@ -136,7 +139,6 @@ export function EventEditor({ event }: { event: EventRecord }) {
       const result = await saveEvent(draft);
       setDraft(result);
       setSaved(JSON.stringify(result));
-      setNotice("Saved. Workflow and action dates updated.");
     } catch (e) {
       setError(errorMessage(e));
     } finally {
@@ -150,7 +152,7 @@ export function EventEditor({ event }: { event: EventRecord }) {
     <form className="event-editor" onSubmit={submit}>
       <header className="page-head">
         <div>
-          <Link className="back-link" href="/clients">
+          <Link className="back-link" href="/">
             ← Events & enquiries
           </Link>
           <h1>{draft.name}</h1>
@@ -1219,10 +1221,8 @@ export function EventEditor({ event }: { event: EventRecord }) {
                   })
                 }
               />
-              <Field
-                label="Assignee"
+              <PersonSelect
                 value={task.assignee}
-                hint="Leave blank for either owner."
                 onChange={(v) =>
                   change((e) => {
                     e.tasks[i].assignee = v;
@@ -1277,6 +1277,35 @@ export function EventEditor({ event }: { event: EventRecord }) {
         ))}
       </Section>
       <Section id="archive" title="Close-out">
+        <button
+          type="button"
+          className="secondary danger"
+          disabled={busy || dirty}
+          onClick={async () => {
+            if (
+              !window.confirm(
+                `Move ${event.name} to Trash? You can restore it later.`,
+              )
+            )
+              return;
+            setBusy(true);
+            setError("");
+            try {
+              await setEventDeleted(event, true);
+              router.push("/");
+            } catch (e) {
+              setError(errorMessage(e));
+              setBusy(false);
+            }
+          }}
+        >
+          Move event to Trash
+        </button>
+        {dirty && (
+          <p className="muted">
+            Save or reload your edits before moving this event to Trash.
+          </p>
+        )}
         <p className="muted">
           Booked events can be archived after the event and once all generated
           and manual actions are resolved. Enquiries that do not proceed can be

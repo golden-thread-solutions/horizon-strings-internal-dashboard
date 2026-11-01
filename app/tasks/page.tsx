@@ -1,4 +1,10 @@
 import { ActionQueue } from "@/components/ActionQueue";
+import { TaskManager } from "@/components/TaskManager";
 export default function Page() {
-  return <ActionQueue all />;
+  return (
+    <>
+      <ActionQueue all />
+      <TaskManager />
+    </>
+  );
 }
