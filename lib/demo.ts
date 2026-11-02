@@ -59,6 +59,21 @@ export function demoData(): Dataset {
     },
   ];
   return {
+    people: [
+      {
+        id: "00000000-0000-4000-8000-000000000001",
+        name: "Koby",
+        revision: 1,
+        active: true,
+      },
+      {
+        id: "00000000-0000-4000-8000-000000000002",
+        name: "Mia",
+        revision: 1,
+        active: true,
+      },
+    ],
+    generalTasks: [],
     events: [enquiry, booked],
     settings: { ...defaultSettings },
     musicians: [],

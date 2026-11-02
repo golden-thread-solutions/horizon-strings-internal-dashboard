@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { assignedPerson } from "@/lib/people";
 import { useEffect, useState } from "react";
 import { useWorkspace } from "./Workspace";
 import {
@@ -17,6 +18,7 @@ export function ActionTable({
   actions: Action[];
   today: string;
 }) {
+  const { data } = useWorkspace();
   return actions.length ? (
     <div className="table-wrap">
       <table>
@@ -41,13 +43,21 @@ export function ActionTable({
                 <small>{formatDate(a.dueDate)}</small>
               </td>
               <td>
-                <Link href={`/clients/${a.eventId}#${a.section}`}>
+                <Link
+                  href={
+                    a.eventId
+                      ? `/clients/${a.eventId}#${a.section}`
+                      : `/tasks#${a.section}`
+                  }
+                >
                   {a.title}
                 </Link>
               </td>
               <td>{a.eventName}</td>
               <td>
-                {a.assignee || "Either owner"}
+                {assignedPerson(data.people || [], a.assignee)?.name ||
+                  a.assignee ||
+                  "Unassigned"}
                 {a.recipient && <small>To: {a.recipient}</small>}
               </td>
               <td className="muted">{a.origin}</td>
@@ -64,20 +74,35 @@ export function ActionQueue({ all = false }: { all?: boolean }) {
   const { data } = useWorkspace();
   const [scope, setScope] = useState(all ? "All dates" : "Next 7 days");
   const [search, setSearch] = useState("");
+  const [assignee, setAssignee] = useState("all");
   const [today, setToday] = useState(businessToday());
   useEffect(() => {
     const timer = setInterval(() => setToday(businessToday()), 60000);
     return () => clearInterval(timer);
   }, []);
-  const actions = data.events
-    .flatMap((e) => eventActions(e, data.settings, today))
+  const actions: Action[] = [
+    ...data.events.flatMap((e) => eventActions(e, data.settings, today)),
+    ...(data.generalTasks || [])
+      .filter((t) => !t.done)
+      .map((t) => ({
+        ...t,
+        eventId: "",
+        eventName: "General business",
+        section: `general-${t.id}`,
+        origin: "Manual" as const,
+      })),
+  ];
+  const visible = actions
     .filter(
       (a) =>
         (scope === "All dates" ||
           a.dueDate <= addDays(today, scope === "Today / overdue" ? 0 : 7)) &&
-        `${a.title} ${a.eventName} ${a.assignee}`
+        `${a.title} ${a.eventName} ${a.assignee} ${assignedPerson(data.people || [], a.assignee)?.name || ""}`
           .toLowerCase()
-          .includes(search.toLowerCase()),
+          .includes(search.toLowerCase()) &&
+        (assignee === "all" ||
+          a.assignee === assignee ||
+          assignedPerson(data.people || [], a.assignee)?.id === assignee),
     )
     .sort(
       (a, b) =>
@@ -94,14 +119,29 @@ export function ActionQueue({ all = false }: { all?: boolean }) {
           <h1>{all ? "All actions" : "What needs attention."}</h1>
           <p>
             Work owed by Horizon, ordered by due date. Open an action to work on
-            its event.
+            its event or task.
           </p>
         </div>
-        <Link className="button" href="/clients#new">
+        <Link className="button" href="/">
           New enquiry
         </Link>
       </header>
       <div className="toolbar">
+        <label>
+          Assignee
+          <select
+            value={assignee}
+            onChange={(e) => setAssignee(e.target.value)}
+          >
+            <option value="all">All people</option>
+            <option value="">Unassigned</option>
+            {(data.people || []).map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        </label>
         <label className="search-label">
           Find an action
           <input
@@ -119,7 +159,7 @@ export function ActionQueue({ all = false }: { all?: boolean }) {
             <option>All dates</option>
           </select>
         </label>
-        <span className="muted">{actions.length} open actions</span>
+        <span className="muted">{visible.length} open actions</span>
       </div>
       {(["Task", "Communication"] as const).map((kind) => (
         <section className="section" key={kind}>
@@ -127,10 +167,10 @@ export function ActionQueue({ all = false }: { all?: boolean }) {
             <h2>
               {kind === "Task" ? "Pending tasks" : "Pending communications"}
             </h2>
-            <span>{actions.filter((a) => a.kind === kind).length}</span>
+            <span>{visible.filter((a) => a.kind === kind).length}</span>
           </div>
           <ActionTable
-            actions={actions.filter((a) => a.kind === kind)}
+            actions={visible.filter((a) => a.kind === kind)}
             today={today}
           />
         </section>

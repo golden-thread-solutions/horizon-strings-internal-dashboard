@@ -13,7 +13,7 @@ import {
 export default function Page() {
   const { data } = useWorkspace();
   const events = data.events
-    .filter((e) => !e.archived)
+    .filter((e) => !e.archived && !e.deletedAt)
     .sort((a, b) =>
       (a.eventDate || "9999").localeCompare(b.eventDate || "9999"),
     );

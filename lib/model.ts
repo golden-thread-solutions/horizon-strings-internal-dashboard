@@ -116,6 +116,42 @@ export const taskSchema = z.object({
   completedAt: date,
 });
 export type ManualTask = z.infer<typeof taskSchema>;
+export const personSchema = z.object({
+  id: z.uuid(),
+  revision: z.number().int().nonnegative(),
+  name: z.string().trim().min(1).max(300),
+  active: z.boolean(),
+});
+export const generalTaskSchema = taskSchema
+  .extend({ revision: z.number().int().nonnegative() })
+  .superRefine((task, c) => {
+    if (task.done && !task.completedAt)
+      c.addIssue({
+        code: "custom",
+        path: ["completedAt"],
+        message: "Record the completion date",
+      });
+    if (!task.done && task.completedAt)
+      c.addIssue({
+        code: "custom",
+        path: ["completedAt"],
+        message: "An open task cannot have a completion date",
+      });
+    const today = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Australia/Sydney",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+    if (task.completedAt > today)
+      c.addIssue({
+        code: "custom",
+        path: ["completedAt"],
+        message: "Completion cannot be dated in the future",
+      });
+  });
+export type Person = z.infer<typeof personSchema>;
+export type GeneralTask = z.infer<typeof generalTaskSchema>;
 export const settingsSchema = z
   .object({
     revision: z.number().int().nonnegative(),
@@ -178,6 +214,7 @@ export const eventSchema = z
     notes: text,
     createdDate: date.refine(Boolean),
     archived: z.boolean(),
+    deletedAt: z.string().default(""),
     archiveReason: text,
     details: z.object(
       Object.fromEntries(
@@ -336,6 +373,8 @@ export type Dataset = {
   musicians: Musician[];
   pieces: Piece[];
   websiteEnquiries: WebsiteEnquiry[];
+  people?: Person[];
+  generalTasks?: GeneralTask[];
 };
 export function newEvent(name: string, today: string): EventRecord {
   return {
@@ -353,6 +392,7 @@ export function newEvent(name: string, today: string): EventRecord {
     notes: "",
     createdDate: today,
     archived: false,
+    deletedAt: "",
     archiveReason: "",
     details: Object.fromEntries(
       detailKeys.map((k) => [

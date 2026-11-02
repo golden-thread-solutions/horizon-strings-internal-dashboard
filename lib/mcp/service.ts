@@ -77,7 +77,10 @@ export class HorizonService {
         "invalid_snapshot",
         "Dashboard data could not be read safely.",
       );
-    return parsed.data;
+    return {
+      ...parsed.data,
+      events: parsed.data.events.filter((e) => !e.deletedAt),
+    };
   }
   private page<T>(records: T[], input: PageInput, text: (record: T) => string) {
     const p = pageInput.parse(input),

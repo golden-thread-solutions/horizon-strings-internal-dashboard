@@ -1,4 +1,5 @@
 "use client";
+import { PeopleSettings } from "@/components/PeopleSettings";
 import { useState } from "react";
 import { useWorkspace } from "@/components/Workspace";
 import { Field, Check, Section, errorMessage } from "@/components/Controls";
@@ -17,17 +18,14 @@ export default function Page() {
   const { data, saveSettings, demo } = useWorkspace();
   const [draft, setDraft] = useState<Settings>({ ...data.settings });
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   async function save(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError("");
-    setNotice("");
     try {
       await saveSettings(draft);
       setDraft({ ...draft, revision: draft.revision + 1 });
-      setNotice("Settings saved. All generated deadlines now use these rules.");
     } catch (e) {
       setError(errorMessage(e));
     } finally {
@@ -144,15 +142,11 @@ export default function Page() {
             {error}
           </p>
         )}
-        {notice && (
-          <p className="success" role="status">
-            {notice}
-          </p>
-        )}
         <button disabled={busy}>
           {busy ? "Saving…" : "Save timing rules"}
         </button>
       </form>
+      <PeopleSettings />
       <Section id="backup" title="Data export">
         <p>
           Download the workspace records as JSON for a manual backup. Store
