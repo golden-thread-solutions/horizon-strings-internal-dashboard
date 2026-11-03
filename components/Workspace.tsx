@@ -1,6 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import {
+  WorkspaceNavigation,
+  WorkspaceMotion,
+  ThemeToggle,
+} from "./WorkspaceMotion";
 import { usePathname } from "next/navigation";
 import {
   createContext,
@@ -569,30 +574,9 @@ function BusinessWorkspace({
               Horizon Strings<small>OPERATIONS</small>
             </span>
           </Link>
-          <nav>
-            {navigation.map(([href, label]) => (
-              <Link
-                key={href}
-                href={href}
-                aria-current={
-                  (
-                    href === "/"
-                      ? pathname === "/" ||
-                        pathname.startsWith("/clients") ||
-                        pathname.startsWith("/enquiries") ||
-                        pathname === "/archive" ||
-                        pathname === "/trash"
-                      : pathname.startsWith(href)
-                  )
-                    ? "page"
-                    : undefined
-                }
-              >
-                {label}
-              </Link>
-            ))}
-          </nav>
+          <WorkspaceNavigation items={navigation} />
           <div className="sidebar-bottom">
+            <ThemeToggle />
             <span>
               {demo ? "Local demonstration" : "Private owner workspace"}
             </span>
@@ -635,7 +619,7 @@ function BusinessWorkspace({
                 {error}
               </p>
             )}
-            {children}
+            <WorkspaceMotion>{children}</WorkspaceMotion>
           </main>
         </div>
       </div>

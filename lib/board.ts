@@ -22,6 +22,7 @@ export type BoardCard = {
   stage: string;
   code: string;
   href: string;
+  revision?: number;
 };
 // Converted history must never become a duplicate card, even if its link is absent.
 export function pendingWebsiteEnquiries(enquiries: WebsiteEnquiry[]) {
@@ -36,6 +37,7 @@ export function eventCard(
 ): BoardCard {
   return {
     id: e.id,
+    revision: e.revision,
     kind: "event",
     name: e.name,
     date: e.eventDate,
