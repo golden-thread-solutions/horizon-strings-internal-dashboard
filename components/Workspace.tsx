@@ -1,6 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import {
+  WorkspaceNavigation,
+  WorkspaceMotion,
+  ThemeToggle,
+} from "./WorkspaceMotion";
 import { usePathname } from "next/navigation";
 import {
   createContext,
@@ -33,7 +38,7 @@ type WorkspaceValue = {
   data: Dataset;
   demo: boolean;
   refreshId: number;
-  refresh: () => Promise<void>;
+  refresh: () => Promise<Dataset>;
   savePerson: (p: Person) => Promise<void>;
   saveGeneralTask: (t: GeneralTask) => Promise<void>;
   saveEvent: (e: EventRecord) => Promise<EventRecord>;
@@ -131,13 +136,15 @@ function BusinessWorkspace({
   async function refresh() {
     setError("");
     try {
+      let next: Dataset;
       if (demo) {
         const saved = localStorage.getItem(storageKey);
-        const next = saved ? validateData(JSON.parse(saved)) : demoData();
+        next = saved ? validateData(JSON.parse(saved)) : demoData();
         if (!saved) localStorage.setItem(storageKey, JSON.stringify(next));
-        setData(next);
-      } else setData(validateData(await request()));
+      } else next = validateData(await request());
+      setData(next);
       setRefreshId((v) => v + 1);
+      return next;
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not load data");
       throw e;
@@ -569,30 +576,9 @@ function BusinessWorkspace({
               Horizon Strings<small>OPERATIONS</small>
             </span>
           </Link>
-          <nav>
-            {navigation.map(([href, label]) => (
-              <Link
-                key={href}
-                href={href}
-                aria-current={
-                  (
-                    href === "/"
-                      ? pathname === "/" ||
-                        pathname.startsWith("/clients") ||
-                        pathname.startsWith("/enquiries") ||
-                        pathname === "/archive" ||
-                        pathname === "/trash"
-                      : pathname.startsWith(href)
-                  )
-                    ? "page"
-                    : undefined
-                }
-              >
-                {label}
-              </Link>
-            ))}
-          </nav>
+          <WorkspaceNavigation items={navigation} />
           <div className="sidebar-bottom">
+            <ThemeToggle />
             <span>
               {demo ? "Local demonstration" : "Private owner workspace"}
             </span>
@@ -635,7 +621,7 @@ function BusinessWorkspace({
                 {error}
               </p>
             )}
-            {children}
+            <WorkspaceMotion>{children}</WorkspaceMotion>
           </main>
         </div>
       </div>
