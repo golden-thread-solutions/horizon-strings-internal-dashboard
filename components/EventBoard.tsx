@@ -13,11 +13,21 @@ import {
   type BoardCard,
 } from "@/lib/board";
 import { businessToday, formatDate, money } from "@/lib/workflow";
-import { isLostEnquiry, moveEnquiryToLost } from "@/lib/lost-enquiries";
+import {
+  isLostEnquiry,
+  moveEnquiryToLost,
+  reopenLostEnquiry,
+} from "@/lib/lost-enquiries";
 import { stageRequirements, type ActiveStage } from "@/lib/board-moves";
+import {
+  reviewBoardMove,
+  acceptBoardMoveReview,
+  type MoveDestination,
+  type MoveDraft,
+  type MoveReview,
+} from "@/lib/board-recovery";
 
-type Destination = "" | ActiveStage | "Lost enquiries" | "Active board";
-type Move = { card: BoardCard; target: Destination; lost: boolean };
+type Destination = MoveDestination;
 export function EventBoard() {
   const { data, saveEvent, convertWebsiteEnquiry, refresh } = useWorkspace();
   const latest = useRef(data);
@@ -30,8 +40,8 @@ export function EventBoard() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
-  const [move, setMove] = useState<Move | null>(null);
-  const [reason, setReason] = useState("");
+  const [move, setMove] = useState<MoveDraft | null>(null);
+  const [review, setReview] = useState<MoveReview | null>(null);
   const [expanded, setExpanded] = useState(false);
   const [dragging, setDragging] = useState("");
   const [dropTarget, setDropTarget] = useState("");
@@ -42,6 +52,8 @@ export function EventBoard() {
   const dialog = useRef<HTMLDialogElement>(null);
   const moveDialog = useRef<HTMLDialogElement>(null);
   const reasonInput = useRef<HTMLTextAreaElement>(null);
+  const reviewHeading = useRef<HTMLHeadingElement>(null);
+  const moveSubmit = useRef<HTMLButtonElement>(null);
   const board = useRef<HTMLDivElement>(null);
   const lostCards = useRef<HTMLDivElement>(null);
   const lostTrigger = useRef<HTMLButtonElement>(null);
@@ -54,6 +66,9 @@ export function EventBoard() {
     if (!moveDialog.current?.open) moveDialog.current?.showModal();
     if (move.target === "Lost enquiries") reasonInput.current?.focus();
   }, [move]);
+  useEffect(() => {
+    if (review) reviewHeading.current?.focus();
+  }, [review]);
   useEffect(() => {
     const el = lostCards.current;
     if (!expanded || !el || motionReduced()) return;
@@ -89,13 +104,14 @@ export function EventBoard() {
         ? document.activeElement
         : null;
     setError("");
-    setReason("");
-    setMove({ card, target, lost });
+    setReview(null);
+    setMove({ card, target, lost, reason: "" });
   }
   function closeMove() {
     if (pending.current) return;
     moveDialog.current?.close();
     setMove(null);
+    setReview(null);
     setError("");
     requestAnimationFrame(() => {
       if (
@@ -178,7 +194,7 @@ export function EventBoard() {
     : move?.card.href;
   async function submitMove(e: React.FormEvent) {
     e.preventDefault();
-    if (!move || pending.current) return;
+    if (!move || pending.current || review) return;
     if (move.target !== "Lost enquiries" && move.target !== "Active board")
       return;
     pending.current = true;
@@ -186,18 +202,10 @@ export function EventBoard() {
     setError("");
     try {
       if (move.target === "Active board") {
-        const current = latest.current.events.find(
-          (e) => e.id === move.card.id,
-        );
-        if (
-          !current ||
-          !isLostEnquiry(current) ||
-          current.revision !== move.card.revision
-        )
-          throw new Error(
-            "This enquiry changed. Reload and review it before reopening.",
-          );
-        await saveEvent({ ...current, archived: false });
+        const current = await reopenLostEnquiry(move.card, {
+          event: (id) => latest.current.events.find((e) => e.id === id),
+          save: saveEvent,
+        });
         setStatus(
           `${current.name} reopened. Its stage follows the saved facts.`,
         );
@@ -208,7 +216,7 @@ export function EventBoard() {
             id: move.card.id,
             revision: move.card.revision,
           },
-          reason,
+          move.reason,
           {
             event: (id) => latest.current.events.find((e) => e.id === id),
             enquiry: (id) =>
@@ -225,6 +233,22 @@ export function EventBoard() {
       requestAnimationFrame(() =>
         lostTrigger.current?.focus({ preventScroll: true }),
       );
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      pending.current = false;
+      setBusy(false);
+    }
+  }
+  async function reloadMove() {
+    if (!move || pending.current) return;
+    pending.current = true;
+    setBusy(true);
+    try {
+      const refreshed = await refresh();
+      latest.current = refreshed;
+      setReview(reviewBoardMove(move, refreshed, today));
+      setError("");
     } catch (e) {
       setError(errorMessage(e));
     } finally {
@@ -473,7 +497,7 @@ export function EventBoard() {
               <select
                 aria-label="Move destination"
                 value={move.target}
-                disabled={busy}
+                disabled={busy || Boolean(review)}
                 onChange={(e) => {
                   setError("");
                   setMove({ ...move, target: e.target.value as Destination });
@@ -527,8 +551,11 @@ export function EventBoard() {
                     required
                     maxLength={10000}
                     rows={4}
-                    value={reason}
-                    onChange={(e) => setReason(e.target.value)}
+                    value={move.reason}
+                    onChange={(e) =>
+                      setMove({ ...move, reason: e.target.value })
+                    }
+                    readOnly={Boolean(review)}
                     disabled={busy}
                   />
                 </label>
@@ -549,29 +576,115 @@ export function EventBoard() {
             {error && (
               <div role="alert" className="error">
                 <p>{error}</p>
+                {!review && (
+                  <button
+                    type="button"
+                    className="text-button"
+                    disabled={busy}
+                    onClick={reloadMove}
+                  >
+                    Reload board
+                  </button>
+                )}
+              </div>
+            )}
+            {review && (
+              <section
+                className="move-review"
+                aria-labelledby="move-review-heading"
+              >
+                <h3 id="move-review-heading" ref={reviewHeading} tabIndex={-1}>
+                  Review reloaded record
+                </h3>
+                <p role="status">
+                  Your reason and destination are retained. Nothing has been
+                  retried or saved.
+                </p>
+                <p>
+                  <strong>{review.draft.card.name}</strong>
+                  <br />
+                  {review.draft.card.date
+                    ? formatDate(review.draft.card.date)
+                    : "Date TBC"}{" "}
+                  · {review.draft.card.area || "Area TBC"} ·{" "}
+                  {review.draft.card.value === null
+                    ? "Value TBC"
+                    : money(review.draft.card.value)}
+                </p>
+                {review.event && (
+                  <>
+                    <p>
+                      Current state:{" "}
+                      {review.event.deletedAt
+                        ? "Trash"
+                        : review.event.archived
+                          ? "Archived"
+                          : review.event.finance.depositReceived
+                            ? "Booked"
+                            : "Active enquiry"}
+                    </p>
+                    <p>General notes: {review.event.notes || "None"}</p>
+                    <p>
+                      Saved lost reason: {review.event.archiveReason || "None"}
+                    </p>
+                  </>
+                )}
+                {review.blocker && (
+                  <p role="alert" className="error">
+                    {review.blocker}
+                  </p>
+                )}
+                <p>
+                  <a
+                    className="text-button"
+                    href={review.draft.card.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Review full saved {review.event ? "event" : "enquiry"}{" "}
+                    (opens a new tab)
+                  </a>
+                </p>
+                {!review.blocker && (
+                  <button
+                    type="button"
+                    className="secondary"
+                    disabled={busy}
+                    onClick={() => {
+                      try {
+                        setMove(
+                          acceptBoardMoveReview(review, latest.current, today),
+                        );
+                        setReview(null);
+                        setError("");
+                        requestAnimationFrame(() =>
+                          moveSubmit.current?.focus(),
+                        );
+                      } catch (e) {
+                        setError(errorMessage(e));
+                      }
+                    }}
+                  >
+                    Use reviewed version
+                  </button>
+                )}
                 <button
                   type="button"
                   className="text-button"
                   disabled={busy}
-                  onClick={async () => {
-                    try {
-                      await refresh();
-                      setError(
-                        "Board reloaded. Review the current event in its workspace before retrying; your reason is retained here.",
-                      );
-                    } catch (e) {
-                      setError(errorMessage(e));
-                    }
-                  }}
+                  onClick={reloadMove}
                 >
                   Reload board
                 </button>
-              </div>
+              </section>
             )}
             <div className="row-actions">
               {(move.target === "Lost enquiries" ||
                 move.target === "Active board") && (
-                <button disabled={busy || booked}>
+                <button
+                  ref={moveSubmit}
+                  disabled={busy || booked || Boolean(review)}
+                >
                   {busy
                     ? "Saving…"
                     : move.target === "Lost enquiries"

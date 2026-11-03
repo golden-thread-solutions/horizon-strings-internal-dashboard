@@ -2,10 +2,11 @@
 import Link from "next/link";
 import { useWorkspace } from "@/components/Workspace";
 import { formatDate } from "@/lib/workflow";
+import { isCompletedArchive } from "@/lib/lost-enquiries";
 export default function Page() {
   const { data } = useWorkspace();
   const events = data.events
-    .filter((e) => e.archived && !e.deletedAt)
+    .filter(isCompletedArchive)
     .sort((a, b) => b.eventDate.localeCompare(a.eventDate));
   return (
     <>
@@ -15,7 +16,10 @@ export default function Page() {
             ← Events & enquiries
           </Link>
           <h1>Archived events</h1>
-          <p>Closed records are kept here, off the active board.</p>
+          <p>
+            Completed event archives are kept here, off the active board. Lost
+            enquiries remain in their own section on the board.
+          </p>
         </div>
       </header>
       <div className="table-wrap">

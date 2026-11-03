@@ -38,7 +38,7 @@ type WorkspaceValue = {
   data: Dataset;
   demo: boolean;
   refreshId: number;
-  refresh: () => Promise<void>;
+  refresh: () => Promise<Dataset>;
   savePerson: (p: Person) => Promise<void>;
   saveGeneralTask: (t: GeneralTask) => Promise<void>;
   saveEvent: (e: EventRecord) => Promise<EventRecord>;
@@ -136,13 +136,15 @@ function BusinessWorkspace({
   async function refresh() {
     setError("");
     try {
+      let next: Dataset;
       if (demo) {
         const saved = localStorage.getItem(storageKey);
-        const next = saved ? validateData(JSON.parse(saved)) : demoData();
+        next = saved ? validateData(JSON.parse(saved)) : demoData();
         if (!saved) localStorage.setItem(storageKey, JSON.stringify(next));
-        setData(next);
-      } else setData(validateData(await request()));
+      } else next = validateData(await request());
+      setData(next);
       setRefreshId((v) => v + 1);
+      return next;
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not load data");
       throw e;

@@ -4,6 +4,10 @@ export function isLostEnquiry(event: EventRecord) {
   return event.archived && !event.deletedAt && !event.finance.depositReceived;
 }
 
+export function isCompletedArchive(event: EventRecord) {
+  return event.archived && !event.deletedAt && !isLostEnquiry(event);
+}
+
 export type MoveSource = {
   kind: "event" | "enquiry";
   id: string;
@@ -15,6 +19,22 @@ export type LostDependencies = {
   convert: (id: string) => Promise<EventRecord>;
   save: (event: EventRecord) => Promise<EventRecord>;
 };
+
+export async function reopenLostEnquiry(
+  source: Pick<MoveSource, "id" | "revision">,
+  deps: Pick<LostDependencies, "event" | "save">,
+) {
+  const current = deps.event(source.id);
+  if (
+    !current ||
+    !isLostEnquiry(current) ||
+    current.revision !== source.revision
+  )
+    throw new Error(
+      "This enquiry changed. Reload and review it before reopening.",
+    );
+  return deps.save({ ...current, archived: false });
+}
 
 export function prepareLostEnquiry(event: EventRecord, reason: string) {
   const trimmed = reason.trim();

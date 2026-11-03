@@ -497,6 +497,15 @@
   .lost-cards[hidden] {
     display: none;
   }
+  .move-review {
+    border-top: 1px solid var(--line);
+    padding-top: 14px;
+    margin-top: 18px;
+    overflow-wrap: anywhere;
+  }
+  .move-review h3 {
+    font-size: 15px;
+  }
   .lost-cards .board-card-shell {
     flex: 0 0 150px;
   }

@@ -30,6 +30,8 @@ No identified content omission. Content preservation was checked by source diff 
 - Lost drop: require a reason, refuse booked/trashed records, save the existing `archived`/`archiveReason` fields with revision checking. Reopen retains that reason and derives the active stage from facts.
 - A historical website submission may need conversion first. If conversion succeeds and archiving fails, keep the reason and explain that the event may now exist. Reload and review before retrying; never retry blindly or invent a second event.
 - Every card retains its full link. The move button provides the same destination dialog without dragging. Escape/Cancel returns focus; saves announce the result.
+- After a conflict, Reload board preserves the draft reason and destination and presents the fresh saved record. The owner explicitly chooses Use reviewed version before retrying; reloading/accepting never saves automatically. Current booking, archive and Trash state is rechecked. A later concurrent change still fails the ordinary revision check.
+- The general Archive uses the shared completed-archive classification and excludes Lost and Trash. Lost records and their reasons remain retained and reopenable on the board.
 
 ## Visual hierarchy and motion
 
@@ -37,7 +39,7 @@ Horizon identity is retained within the Golden Thread V14 language: warm neutral
 
 Actual motion includes shell/word entrances, ordered route reveals, a measured sliding navigation selection, dialog/save feedback, Lost expansion and the V14 liquid theme reveal. Preferences use `prefers-reduced-motion: reduce` or the existing author hook `html[data-motion="reduced"]`; both CSS and JavaScript paths suppress animation. Theme choice persists locally. See [pattern sample](board-patterns.html) for the new resting patterns; the application is the interactive reference.
 
-## Verification
+## Initial writer verification (head 755edf4)
 
 Local development uses explicitly labelled synthetic data only. No live writes were made.
 
@@ -51,4 +53,6 @@ Local development uses explicitly labelled synthetic data only. No live writes w
 
 Base: main. Production is the existing Vercel dashboard on main; this working branch/PR is not a production release. Existing approved Preview integration may build a preview. No environment or schema change is needed; do not reapply the already released board/Trash/People migration. Reverting this UI commit removes the new interactions while preserving archived reasons and existing event facts.
 
-Observed implementation lesson: a fact-derived pipeline can support dragging by opening requirements, while closure alone uses its existing validated save. This preserves meaningful payment/communication facts. The behaviour is verified locally; its operational benefit and owner design acceptance remain unverified. Reusable knowledge capture is proposed/pending, not a new adopted Standard.
+The independent review of head `755edf4` identified a stuck conflict-recovery flow and Archive/Lost overlap. The current candidate corrects both; see [review fixes and current evidence](PR11_REVIEW_FIXES.md). The old review's checks do not approve this changed candidate. Independent phone/touch, exact live motion/reduced-motion, hosted lifecycle and owner composition acceptance remain unverified.
+
+Observed implementation lesson: revision rejection protects records, but recovery also needs to preserve the draft through explicit review of fresh facts; a lifecycle classification must be checked across every view that consumes its underlying status. Existing client-flow/content-parity and review guidance already cover those principles. Project evidence is recorded here and in the review-fix note; no new permanent rule or Standard is proposed or saved.
