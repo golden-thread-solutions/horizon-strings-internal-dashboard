@@ -159,7 +159,7 @@ export function MusicianCatalogue() {
             </thead>
             <tbody>
               {data.events
-                .filter((e) => !e.archived)
+                .filter((e) => !e.archived && !e.deletedAt)
                 .flatMap((e) =>
                   e.musicians.map((m) => (
                     <tr key={m.id}>
@@ -323,7 +323,7 @@ export function RepertoireCatalogue() {
             </thead>
             <tbody>
               {data.events
-                .filter((e) => !e.archived)
+                .filter((e) => !e.archived && !e.deletedAt)
                 .flatMap((e) =>
                   e.repertoire
                     .filter((p) => p.status === "Needs arranging")

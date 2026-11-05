@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en-AU">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Horizon board patterns · synthetic sample</title>
+  <link rel="stylesheet" href="../app/globals.css" />
+  <link rel="stylesheet" href="../app/gts-workspace.css" />
+  <style>
+    body {
+      padding: 32px;
+    }
+    main {
+      max-width: 1000px;
+      margin: auto;
+    }
+    .samples {
+      display: flex;
+      gap: 20px;
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+    .board-column {
+      width: 150px;
+      flex: none;
+    }
+    .board-card-shell {
+      position: relative;
+    }
+    .workspace-dialog {
+      position: static;
+      display: block;
+      margin: 0;
+      width: 380px;
+      max-width: 100%;
+    }
+    .lost-enquiries {
+      margin-top: 28px;
+    }
+    h1 {
+      margin-bottom: 30px;
+    }
+    .sample-note {
+      max-width: 65ch;
+      margin-bottom: 24px;
+    }
+  </style>
+  <main>
+    <span class="eyebrow">DEVELOPMENT REFERENCE · SYNTHETIC DATA</span>
+    <h1>Board patterns</h1>
+    <p class="sample-note">
+      Resting-state examples of the new patterns. These controls illustrate
+      appearance only. Use the development dashboard to test dragging,
+      validation, focus and motion.
+    </p>
+    <div class="samples">
+      <section class="board-column">
+        <header class="board-column-head">
+          <h2>New Enquiry</h2>
+          <span class="board-count">1</span>
+        </header>
+        <article class="board-card-shell">
+          <div class="board-card">
+            <span class="board-card-date">4 Mar 2027</span
+            ><strong class="board-card-name"
+              >Alex & Jordan — sample enquiry</strong
+            ><span class="board-card-area">Coffs Harbour</span
+            ><span class="board-card-value">$1,500.00</span>
+          </div>
+          <button class="card-move-button" aria-label="Sample move action">
+            →
+          </button>
+        </article>
+      </section>
+      <section class="board-column is-drop-target">
+        <header class="board-column-head">
+          <h2>Pending Booking</h2>
+          <span class="board-count">0</span>
+        </header>
+        <p class="board-empty">Highlighted drop target</p>
+      </section>
+      <section class="workspace-dialog">
+        <span class="eyebrow">ALEX & JORDAN · SAMPLE</span>
+        <h2>Move enquiry or event</h2>
+        <label
+          >Destination<select>
+            <option>Pending Booking</option>
+          </select></label
+        >
+        <p>
+          Stages follow recorded facts. This move will not mark a message sent,
+          a payment received or work completed.
+        </p>
+        <ul>
+          <li>
+            Send the welcome/deposit message, then record its actual sent date.
+          </li>
+        </ul>
+        <button>Open event workspace</button>
+      </section>
+    </div>
+    <section class="lost-enquiries is-drop-target">
+      <div class="lost-summary">
+        <div>
+          <h2>Lost enquiries <span>1</span></h2>
+          <p>Enquiries that did not proceed. Kept separately from Trash.</p>
+        </div>
+        <button class="secondary">View enquiries</button>
+      </div>
+    </section>
+    <p class="sample-note">
+      Lost opens a required reason form. A failed save retains that reason with
+      a reload/review message. Reopen returns to the stage derived from saved
+      facts. Booked events cannot be marked lost.
+    </p>
+  </main>
+</html>

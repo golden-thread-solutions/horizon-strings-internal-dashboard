@@ -1,6 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import {
+  WorkspaceNavigation,
+  WorkspaceMotion,
+  ThemeToggle,
+} from "./WorkspaceMotion";
 import { usePathname } from "next/navigation";
 import {
   createContext,
@@ -18,6 +23,10 @@ import {
   musicianSchema,
   pieceSchema,
   websiteEnquirySchema,
+  personSchema,
+  generalTaskSchema,
+  type Person,
+  type GeneralTask,
   type Dataset,
   type EventRecord,
   type Settings,
@@ -29,8 +38,11 @@ type WorkspaceValue = {
   data: Dataset;
   demo: boolean;
   refreshId: number;
-  refresh: () => Promise<void>;
+  refresh: () => Promise<Dataset>;
+  savePerson: (p: Person) => Promise<void>;
+  saveGeneralTask: (t: GeneralTask) => Promise<void>;
   saveEvent: (e: EventRecord) => Promise<EventRecord>;
+  setEventDeleted: (e: EventRecord, deleted: boolean) => Promise<void>;
   saveSettings: (s: Settings) => Promise<void>;
   saveMusician: (m: Musician) => Promise<void>;
   savePiece: (p: Piece) => Promise<void>;
@@ -39,8 +51,7 @@ type WorkspaceValue = {
 const Context = createContext<WorkspaceValue | null>(null);
 const storageKey = "horizon-dashboard-demo-v1";
 const navigation = [
-  ["/", "Dashboard"],
-  ["/clients", "Events & enquiries"],
+  ["/", "Events & enquiries"],
   ["/tasks", "All actions"],
   ["/musicians", "Musicians"],
   ["/repertoire", "Repertoire & arrangements"],
@@ -49,6 +60,10 @@ const navigation = [
 ];
 function validateData(value: Dataset): Dataset {
   return {
+    people: (value.people || []).map((p) => personSchema.parse(p)),
+    generalTasks: (value.generalTasks || []).map((t) =>
+      generalTaskSchema.parse(t),
+    ),
     events: value.events.map((e) => eventSchema.parse(e)),
     settings: settingsSchema.parse(value.settings),
     musicians: value.musicians.map((m) => musicianSchema.parse(m)),
@@ -87,6 +102,12 @@ function BusinessWorkspace({
   const [data, setData] = useState<Dataset | null>(null);
   const [ready, setReady] = useState(false);
   const [refreshId, setRefreshId] = useState(0);
+  const [notice, setNotice] = useState("");
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(() => setNotice(""), 8000);
+    return () => clearTimeout(timer);
+  }, [notice]);
   const [signedIn, setSignedIn] = useState(false);
   const [error, setError] = useState("");
   const [email, setEmail] = useState("");
@@ -115,13 +136,15 @@ function BusinessWorkspace({
   async function refresh() {
     setError("");
     try {
+      let next: Dataset;
       if (demo) {
         const saved = localStorage.getItem(storageKey);
-        const next = saved ? validateData(JSON.parse(saved)) : demoData();
+        next = saved ? validateData(JSON.parse(saved)) : demoData();
         if (!saved) localStorage.setItem(storageKey, JSON.stringify(next));
-        setData(next);
-      } else setData(validateData(await request()));
+      } else next = validateData(await request());
+      setData(next);
       setRefreshId((v) => v + 1);
+      return next;
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not load data");
       throw e;
@@ -185,6 +208,7 @@ function BusinessWorkspace({
     }
   }
   async function saveEvent(event: EventRecord) {
+    setNotice("");
     const valid = eventSchema.parse(event);
     let saved: EventRecord;
     if (demo) {
@@ -192,6 +216,8 @@ function BusinessWorkspace({
         JSON.parse(localStorage.getItem(storageKey) || "null"),
       );
       const current = latest.events.find((e) => e.id === valid.id);
+      if (current?.deletedAt)
+        throw new Error("Restore this event from Trash before editing.");
       if ((current?.revision || 0) !== valid.revision)
         throw new Error(
           "This event changed in another tab. Reload before saving.",
@@ -224,9 +250,61 @@ function BusinessWorkspace({
           : current,
       );
     }
+    setNotice("Event saved. Workflow and action dates updated.");
     return saved;
   }
+  async function setEventDeleted(event: EventRecord, deleted: boolean) {
+    setNotice("");
+    let saved: EventRecord;
+    if (demo) {
+      const latest = validateData(
+        JSON.parse(localStorage.getItem(storageKey) || "null"),
+      );
+      const current = latest.events.find((e) => e.id === event.id);
+      if (
+        !current ||
+        current.revision !== event.revision ||
+        Boolean(current.deletedAt) === deleted
+      )
+        throw new Error("Event changed. Reload before deleting or restoring.");
+      saved = {
+        ...current,
+        revision: current.revision + 1,
+        deletedAt: deleted ? new Date().toISOString() : "",
+      };
+      const next = {
+        ...latest,
+        events: latest.events.map((e) => (e.id === saved.id ? saved : e)),
+      };
+      localStorage.setItem(storageKey, JSON.stringify(next));
+      setData(next);
+    } else {
+      saved = eventSchema.parse(
+        await request("eventTrash", {
+          id: event.id,
+          revision: event.revision,
+          deleted,
+        }),
+      );
+      setData((current) =>
+        current
+          ? {
+              ...current,
+              events: current.events.map((e) =>
+                e.id === saved.id ? saved : e,
+              ),
+            }
+          : current,
+      );
+    }
+    setNotice(
+      deleted
+        ? "Event moved to Trash. You can restore it from Trash."
+        : "Event restored.",
+    );
+  }
   async function saveSettings(settings: Settings) {
+    setNotice("");
     const valid = settingsSchema.parse(settings);
     if (demo) {
       const latest = validateData(
@@ -246,8 +324,10 @@ function BusinessWorkspace({
       const saved = settingsSchema.parse(await request("settings", valid));
       setData((d) => (d ? { ...d, settings: saved } : d));
     }
+    setNotice("Settings saved. Generated deadlines updated.");
   }
   async function convertWebsiteEnquiry(id: string) {
+    setNotice("");
     let saved: EventRecord;
     if (demo) {
       const latest = validateData(
@@ -302,12 +382,70 @@ function BusinessWorkspace({
       saved = eventSchema.parse(await request("convertEnquiry", { id }));
       await refresh();
     }
+    setNotice("Enquiry added to the event board.");
     return saved;
+  }
+  async function saveWorkItem(
+    kind: "person" | "generalTask",
+    input: Person | GeneralTask,
+  ) {
+    setNotice("");
+    const valid =
+      kind === "person"
+        ? personSchema.parse(input)
+        : generalTaskSchema.parse(input);
+    const key = kind === "person" ? "people" : "generalTasks";
+    let saved: Person | GeneralTask;
+    if (demo) {
+      const latest = validateData(
+        JSON.parse(localStorage.getItem(storageKey) || "null"),
+      );
+      const items = (latest[key] || []) as (Person | GeneralTask)[];
+      const current = items.find((item) => item.id === valid.id);
+      if ((current?.revision || 0) !== valid.revision)
+        throw new Error("This record changed. Reload before saving.");
+      if (
+        kind === "person" &&
+        (latest.people || []).some(
+          (p) =>
+            p.id !== valid.id &&
+            p.name.toLowerCase() === (valid as Person).name.toLowerCase(),
+        )
+      )
+        throw new Error("That person already exists.");
+      saved = { ...valid, revision: valid.revision + 1 };
+      const next = {
+        ...latest,
+        [key]: current
+          ? items.map((item) => (item.id === saved.id ? saved : item))
+          : [...items, saved],
+      };
+      localStorage.setItem(storageKey, JSON.stringify(next));
+      setData(next as Dataset);
+    } else {
+      const result = await request(kind, valid);
+      saved =
+        kind === "person"
+          ? personSchema.parse(result)
+          : generalTaskSchema.parse(result);
+      setData((current) => {
+        if (!current) return current;
+        const items = (current[key] || []) as (Person | GeneralTask)[];
+        return {
+          ...current,
+          [key]: items.some((item) => item.id === saved.id)
+            ? items.map((item) => (item.id === saved.id ? saved : item))
+            : [...items, saved],
+        } as Dataset;
+      });
+    }
+    setNotice(kind === "person" ? "Person saved." : "Task saved.");
   }
   async function saveCatalogue(
     kind: "musician" | "piece",
     item: Musician | Piece,
   ) {
+    setNotice("");
     const valid =
       kind === "musician"
         ? musicianSchema.parse(item)
@@ -326,11 +464,15 @@ function BusinessWorkspace({
     };
     if (demo) localStorage.setItem(storageKey, JSON.stringify(next));
     setData(next as Dataset);
+    setNotice(
+      kind === "musician" ? "Musician saved." : "Repertoire piece saved.",
+    );
   }
   const signout = async () => {
     await browserSupabase()?.auth.signOut();
     setData(null);
     setSignedIn(false);
+    setNotice("");
     setError("");
   };
   if (!ready)
@@ -416,7 +558,10 @@ function BusinessWorkspace({
         demo,
         refreshId,
         refresh,
+        savePerson: (p) => saveWorkItem("person", p),
+        saveGeneralTask: (t) => saveWorkItem("generalTask", t),
         saveEvent,
+        setEventDeleted,
         saveSettings,
         saveMusician: (m) => saveCatalogue("musician", m),
         savePiece: (p) => saveCatalogue("piece", p),
@@ -431,22 +576,9 @@ function BusinessWorkspace({
               Horizon Strings<small>OPERATIONS</small>
             </span>
           </Link>
-          <nav>
-            {navigation.map(([href, label]) => (
-              <Link
-                key={href}
-                href={href}
-                aria-current={
-                  (href === "/" ? pathname === "/" : pathname.startsWith(href))
-                    ? "page"
-                    : undefined
-                }
-              >
-                {label}
-              </Link>
-            ))}
-          </nav>
+          <WorkspaceNavigation items={navigation} />
           <div className="sidebar-bottom">
+            <ThemeToggle />
             <span>
               {demo ? "Local demonstration" : "Private owner workspace"}
             </span>
@@ -465,12 +597,31 @@ function BusinessWorkspace({
             </div>
           )}
           <main className="main">
+            <div
+              className="save-feedback"
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+            >
+              {notice && (
+                <div className="success save-feedback-message">
+                  <span>{notice}</span>
+                  <button
+                    className="text-button"
+                    onClick={() => setNotice("")}
+                    aria-label="Dismiss save confirmation"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              )}
+            </div>
             {error && (
               <p role="alert" className="error">
                 {error}
               </p>
             )}
-            {children}
+            <WorkspaceMotion>{children}</WorkspaceMotion>
           </main>
         </div>
       </div>

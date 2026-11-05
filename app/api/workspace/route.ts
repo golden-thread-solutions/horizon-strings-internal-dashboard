@@ -6,6 +6,8 @@ import {
   settingsSchema,
   musicianSchema,
   pieceSchema,
+  personSchema,
+  generalTaskSchema,
 } from "@/lib/model";
 import { businessToday, canArchive } from "@/lib/workflow";
 
@@ -85,6 +87,16 @@ export async function GET(req: NextRequest) {
   }
 }
 const mutationSchema = z.discriminatedUnion("operation", [
+  z.object({ operation: z.literal("person"), data: personSchema }),
+  z.object({ operation: z.literal("generalTask"), data: generalTaskSchema }),
+  z.object({
+    operation: z.literal("eventTrash"),
+    data: z.object({
+      id: z.uuid(),
+      revision: z.number().int().positive(),
+      deleted: z.boolean(),
+    }),
+  }),
   z.object({ operation: z.literal("event"), data: eventSchema }),
   z.object({ operation: z.literal("settings"), data: settingsSchema }),
   z.object({ operation: z.literal("musician"), data: musicianSchema }),
@@ -122,6 +134,25 @@ export async function POST(req: NextRequest) {
       );
     const { operation, data } = parsed.data;
     const db = auth.db!;
+    if (operation === "person" || operation === "generalTask") {
+      const { data: saved, error } = await db.rpc(
+        operation === "person" ? "hs_save_person" : "hs_save_general_task",
+        { p_record: data },
+      );
+      if (operation === "person" && error?.code === "23505")
+        return reply({ error: "A person with that name already exists." }, 400);
+      if (operation === "generalTask" && error?.code === "22023")
+        return reply({ error: "Choose an active person for this task." }, 400);
+      return error ? databaseError(error) : reply(saved);
+    }
+    if (operation === "eventTrash") {
+      const { data: saved, error } = await db.rpc("hs_set_event_deleted", {
+        p_id: data.id,
+        p_revision: data.revision,
+        p_deleted: data.deleted,
+      });
+      return error ? databaseError(error) : reply(saved);
+    }
     if (operation === "event") {
       if (
         data.createdDate > businessToday() ||

@@ -520,7 +520,7 @@ test("migration, RLS, atomic save, stale revisions and settings against Postgres
         ...childSaved.record,
         details: { ...childSaved.record.details, rehearsal: invalidDetail },
       }),
-      /check constraint/,
+      /Deferred detail needs a date or trigger/,
     );
     assert.equal(
       (

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Workspace } from "@/components/Workspace";
 import "./globals.css";
+import "./gts-workspace.css";
 export const metadata: Metadata = {
   title: "Horizon Strings · Operations",
   description: "Private Horizon Strings operations workspace",
