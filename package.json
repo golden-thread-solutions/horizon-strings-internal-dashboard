@@ -12,6 +12,7 @@
     "typecheck": "next typegen && tsc --noEmit",
     "format": "prettier --write app components lib tests scripts next.config.mjs package.json",
     "test": "tsx --test tests/*.test.ts",
+    "test:mcp-concurrency": "node scripts/rehearse-mcp-concurrency.mjs",
     "check": "npm run typecheck && npm test",
     "preflight": "node scripts/preflight.mjs"
   },
@@ -19,10 +20,10 @@
     "@supabase/supabase-js": "2.116.0",
     "jose": "6.2.12",
     "mcp-handler": "2.3.0",
-    "next": "16.3.5",
+    "next": "16.4.5",
     "react": "19.3.0",
     "react-dom": "19.3.0",
-    "zod": "4.6.5"
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.3.14",

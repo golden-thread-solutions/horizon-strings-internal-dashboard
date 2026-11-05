@@ -86,7 +86,8 @@ export function Workspace(props: {
 }) {
   const pathname = usePathname();
   // Consent must not load the operational workspace or synchronise enquiries.
-  if (pathname === "/oauth/consent") return <>{props.children}</>;
+  if (pathname === "/oauth/consent" || pathname === "/settings/mcp")
+    return <>{props.children}</>;
   return <BusinessWorkspace {...props} />;
 }
 function BusinessWorkspace({

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { generateKeyPair, exportJWK, createLocalJWKSet, SignJWT } from "jose";
 import { newEvent, defaultSettings, type Dataset } from "../lib/model";
 import { HorizonService } from "../lib/mcp/service";
+import { writeInputs } from "../lib/mcp/commands";
 import { mcpTransport } from "../lib/mcp/transport";
 import { verifyAgent, authenticateRequest } from "../lib/mcp/auth";
 import { readLimitedBody } from "../lib/mcp/body";
@@ -64,7 +65,7 @@ async function rpc(
       )
     : JSON.parse(body);
 }
-test("real MCP transport discovers only read tools and reads complete event finance", async () => {
+test("real MCP transport preserves all read tools and complete event finance", async () => {
   const data = fixture(),
     seen: string[] = [],
     handler = mcpTransport(service(data, seen));
@@ -124,13 +125,17 @@ test("real MCP transport discovers only read tools and reads complete event fina
       "list_events",
       "list_website_enquiries",
       "search",
+      ...Object.keys(writeInputs),
     ].sort(),
   );
   assert.ok(
     tools.every(
       (t: {
+        name: string;
         annotations: { readOnlyHint: boolean; destructiveHint: boolean };
-      }) => t.annotations.readOnlyHint && !t.annotations.destructiveHint,
+      }) =>
+        t.annotations.readOnlyHint === !(t.name in writeInputs) &&
+        !t.annotations.destructiveHint,
     ),
   );
   const list = await rpc(handler, "tools/call", {
@@ -174,7 +179,7 @@ test("real MCP transport discovers only read tools and reads complete event fina
     arguments: { operation: "delete" },
   });
   assert.ok(extra.error || extra.result.isError);
-  assert.deepEqual([...new Set(seen)], ["hs_mcp_read_workspace"]);
+  assert.deepEqual([...new Set(seen)], ["hs_mcp_read_workspace", "hs_mcp_can_write"]);
 });
 test("lists page without losing archived records and search/fetch remain caller-bound", async () => {
   const data = fixture("Alpha"),
