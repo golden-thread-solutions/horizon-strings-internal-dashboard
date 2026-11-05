@@ -70,6 +70,7 @@ const contactSchema = z.object({
   notes: text,
 });
 export const musicianSchema = z.object({
+  revision: z.number().int().positive().optional(),
   id: z.uuid(),
   name: z.string().trim().min(1).max(300),
   instrument: short,
@@ -78,6 +79,7 @@ export const musicianSchema = z.object({
   notes: text,
 });
 export const pieceSchema = z.object({
+  revision: z.number().int().positive().optional(),
   id: z.uuid(),
   title: z.string().trim().min(1).max(300),
   artist: short,

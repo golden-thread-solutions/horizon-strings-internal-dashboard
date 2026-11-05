@@ -28,5 +28,6 @@ export function mcpConfig() {
     issuer: `${supabaseUrl.replace(/\/$/, "")}/auth/v1`,
     key,
     enabled: process.env.MCP_ENABLED === "true",
+    writeEnabled: process.env.MCP_WRITE_ENABLED === "true",
   };
 }

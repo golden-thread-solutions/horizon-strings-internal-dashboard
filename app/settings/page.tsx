@@ -1,6 +1,7 @@
 "use client";
 import { PeopleSettings } from "@/components/PeopleSettings";
 import { useState } from "react";
+import Link from "next/link";
 import { useWorkspace } from "@/components/Workspace";
 import { Field, Check, Section, errorMessage } from "@/components/Controls";
 import type { Settings } from "@/lib/model";
@@ -67,6 +68,9 @@ export default function Page() {
           </p>
         </div>
       </header>
+      <p>
+        <Link href="/settings/mcp">Connected account write access</Link>
+      </p>
       <form onSubmit={save}>
         {!draft.defaultsReviewed && (
           <p className="notice">

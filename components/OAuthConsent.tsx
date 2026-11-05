@@ -140,9 +140,12 @@ export default function OAuthConsent() {
               included in conversations in the connected account.
             </p>
             <p>
-              This connection cannot edit or delete records, convert enquiries,
-              send messages or download linked files. Only allow a connection
-              and ChatGPT account you trust.
+              This approval grants read access. Operational writes require
+              separate owner consent at Settings → Connected account write
+              access and a separate activation grant. Financial edits, deletion,
+              archiving/restoration, enquiry conversion, file downloads and
+              sending messages are excluded. Only allow a connection and ChatGPT
+              account you trust.
             </p>
             <p>Identity scopes: {scope || "Loading…"}</p>
             <div className="row-actions">

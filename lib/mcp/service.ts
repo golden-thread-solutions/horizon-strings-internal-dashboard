@@ -19,6 +19,7 @@ import {
 } from "../workflow";
 import { HorizonMcpError } from "./auth";
 import { mcpConfig } from "./config";
+import { writeInputs, type WriteOperation } from "./commands";
 
 export const pageInput = z
   .object({
@@ -47,6 +48,51 @@ function searchableText(value: unknown): string {
 // Never invoke the normal workspace loader: it converts website enquiries on read.
 export class HorizonService {
   constructor(private readonly db: Pick<SupabaseClient, "rpc">) {}
+  async write(operation: WriteOperation, input: unknown) {
+    if (!mcpConfig().writeEnabled)
+      throw new HorizonMcpError(
+        403,
+        "writes_disabled",
+        "Dashboard MCP writes are disabled.",
+      );
+    const parsed = writeInputs[operation].safeParse(input);
+    if (!parsed.success)
+      throw new HorizonMcpError(
+        400,
+        "invalid_command",
+        "The write command is invalid.",
+      );
+    // Send the exact caller command, without default insertion or coercion.
+    const { data, error } = await this.db.rpc("hs_mcp_mutate", {
+      p_command: { operation, ...(input as Record<string, unknown>) },
+    });
+    if (error) {
+      const code =
+        error.code === "40001" || error.code === "23505"
+          ? "revision_conflict"
+          : error.code === "22023"
+            ? "invalid_command"
+            : error.code === "42501"
+              ? "access_denied"
+              : "unavailable";
+      throw new HorizonMcpError(
+        code === "revision_conflict"
+          ? 409
+          : code === "invalid_command"
+            ? 400
+            : code === "access_denied"
+              ? 403
+              : 503,
+        code,
+        code === "revision_conflict"
+          ? "Record changed. Read the latest revision before editing; keep the original command and request ID only for identical retries."
+          : code === "invalid_command"
+            ? "Invalid command or request ID reused with a different command."
+            : "Write access is unavailable or has been revoked.",
+      );
+    }
+    return data;
+  }
   async assertAccess() {
     const { data, error } = await this.db.rpc("hs_mcp_can_read");
     if (error)
@@ -189,6 +235,8 @@ export class HorizonService {
       today: businessToday(),
       timezone: "Australia/Sydney",
       readOnly: true,
+      writeApplicationEnabled: mcpConfig().writeEnabled,
+      writeGranted: (await this.db.rpc("hs_mcp_can_write")).data === true,
     };
   }
   async search(query: string) {
