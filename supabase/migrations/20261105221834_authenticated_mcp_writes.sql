@@ -135,7 +135,7 @@ declare
   op text; rid uuid; eid uuid; expected integer; d jsonb; contract jsonb;
   receipt hs_mcp_private.receipts; e public.hs_events; old_record jsonb; merged jsonb;
   result jsonb; result_revision integer; today text:=to_char(now() at time zone 'Australia/Sydney','YYYY-MM-DD');
-  grp text; val jsonb; k text; tbl text; cols text; updates text; count_rows int; limit_rows int; child_id uuid;
+  grp text; val jsonb; k text; tbl text; updates text; count_rows int; limit_rows int; child_id uuid; affected integer;
 begin
   -- Check even before receipt lookup: revocation also denies retries.
   if not coalesce(public.hs_mcp_can_write(),false) then raise exception 'MCP write access denied' using errcode='42501'; end if;
@@ -174,10 +174,18 @@ begin
     end if;
     merged:=coalesce(old_record,'{}'::jsonb)||d||jsonb_build_object('id',eid,'revision',1);
     if op='upsert_piece' then merged:=jsonb_build_object('genre','','weddingSuitable','Unreviewed')||merged; end if;
-    select string_agg(format('%I',a.attname),','),string_agg(format('%1$I=excluded.%1$I',a.attname),',') into cols,updates
-      from pg_attribute a where a.attrelid=format('public.%I',tbl)::regclass and a.attnum>0 and not a.attisdropped and a.attname not in ('id','revision');
-    execute format('insert into public.%1$I as t select * from jsonb_populate_record(null::public.%1$I,$1) on conflict(id) do update set %2$s returning to_jsonb(t)',tbl,updates)
-      into result using merged;
+    if expected=0 then
+      -- An absent-row lookup cannot lock a concurrent creator. Creation is
+      -- insert-only: the unique constraint rejects a conflicting committed ID.
+      execute format('insert into public.%1$I as t select * from jsonb_populate_record(null::public.%1$I,$1) returning to_jsonb(t)',tbl)
+        into result using merged;
+    else
+      select string_agg(format('%1$I=incoming.%1$I',a.attname),',') into updates
+        from pg_attribute a where a.attrelid=format('public.%I',tbl)::regclass and a.attnum>0 and not a.attisdropped and a.attname not in ('id','revision');
+      execute format('update public.%1$I t set %2$s from jsonb_populate_record(null::public.%1$I,$1) incoming where t.id=$2 and t.revision=$3 returning to_jsonb(t)',tbl,updates)
+        into result using merged,eid,expected;
+      if result is null then raise exception 'Directory revision changed' using errcode='40001'; end if;
+    end if;
     result_revision:=(result->>'revision')::int;
   elsif op='update_workflow_settings' then
     select to_jsonb(s)-'id' into old_record from public.hs_settings s where id=1 for update;
@@ -242,12 +250,24 @@ begin
       elsif tbl='hs_event_repertoire' then
         merged:=merged||jsonb_build_object('pieceId',nullif(d->>'pieceId',''));
       end if;
-      select string_agg(format('%1$I=excluded.%1$I',a.attname),',') into updates
-        from pg_attribute a where a.attrelid=format('public.%I',tbl)::regclass and a.attnum>0 and not a.attisdropped and a.attname not in ('id','eventId','fee','paid','sortOrder');
-      execute format('insert into public.%1$I select * from jsonb_populate_record(null::public.%1$I,$1) on conflict(id) do update set %2$s',tbl,updates) using merged;
+      if old_record is null then
+        -- Never turn a conflicting create into an unchecked update. This also
+        -- protects against ordinary owner saves inserting the same child UUID.
+        execute format('insert into public.%1$I select * from jsonb_populate_record(null::public.%1$I,$1)',tbl) using merged;
+      else
+        select string_agg(format('%1$I=incoming.%1$I',a.attname),',') into updates
+          from pg_attribute a where a.attrelid=format('public.%I',tbl)::regclass and a.attnum>0 and not a.attisdropped and a.attname not in ('id','eventId','fee','paid','sortOrder');
+        -- The locked parent serializes ordinary owner saves. Enforce its
+        -- revision and the child's actual parent again in the final mutation.
+        execute format('update public.%1$I t set %2$s from jsonb_populate_record(null::public.%1$I,$1) incoming where t.id=$2 and t."eventId"=$3 and exists(select 1 from public.hs_events e where e.id=$3 and e.revision=$4)',tbl,updates)
+          using merged,child_id,eid,expected;
+        get diagnostics affected = row_count;
+        if affected<>1 then raise exception 'Child or parent revision changed' using errcode='40001'; end if;
+      end if;
     end if;
     update public.hs_events set revision=case when op='create_event' then revision else revision+1 end,"updatedAt"=now(),"updatedBy"=auth.uid()
-      where id=eid returning revision into result_revision;
+      where id=eid and revision=case when op='create_event' then 1 else expected end returning revision into result_revision;
+    if not found then raise exception 'Event revision changed' using errcode='40001'; end if;
     insert into public.hs_audit(event_id,revision) values(eid,result_revision);
     result:=public.hs_get_event(eid);
   end if;

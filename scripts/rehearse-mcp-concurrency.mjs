@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { createRequire } from "node:module";
 import assert from "node:assert/strict";
+import { regressAbsentRowRaces } from "./mcp-race-regressions.mjs";
 const runtime = process.env.MCP_TEST_RUNTIME || process.argv[2];
 if (!runtime)
   throw new Error(
@@ -176,6 +177,13 @@ try {
     mutate(b, { ...retry, data: { notes: "Changed retry" } }),
     (e) => e.code === "22023",
   );
+  const raceRegressions = await regressAbsentRowRaces({
+    admin,
+    a,
+    b,
+    claims,
+    mutate,
+  });
   console.log(
     JSON.stringify({
       postgres: (await admin.query("show server_version")).rows[0]
@@ -183,12 +191,13 @@ try {
       staleConcurrentEdit: "40001 after real row-lock wait",
       concurrentIdenticalRetry: "same result; one revision/receipt/activity",
       changedRetry: "22023",
+      raceRegressions,
       data: "synthetic only",
       clusterStoppedOnExit: true,
     }),
   );
 } finally {
   for (const c of clients) await c.end().catch(() => {});
-  await cluster.stop().catch(() => {});
+  await cluster.stop();
   // Preserve this synthetic cluster for inspection; no recursive filesystem deletion.
 }

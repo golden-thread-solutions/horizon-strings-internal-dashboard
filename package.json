@@ -12,6 +12,7 @@
     "typecheck": "next typegen && tsc --noEmit",
     "format": "prettier --write app components lib tests scripts next.config.mjs package.json",
     "test": "tsx --test tests/*.test.ts",
+    "test:mcp-concurrency": "node scripts/rehearse-mcp-concurrency.mjs",
     "check": "npm run typecheck && npm test",
     "preflight": "node scripts/preflight.mjs"
   },
